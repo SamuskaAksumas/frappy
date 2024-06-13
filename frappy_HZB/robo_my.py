@@ -49,7 +49,7 @@ RESET_PROG = 'reset.urp'
 class RobotIO(StringIO):
     pass
     
-    default_settings = {'port': 29999}
+    default_settings = {'port': 29999} # for dashboard client?
     pollinterval = 1
     wait_before = 0.05
 
@@ -99,7 +99,7 @@ class UR_Robot(HasIO,Drivable, URRobot):
                        default = '0.0.0.0',
                        readonly = True)
 
-    temperature = Parameter("Temperatures in Robot (Joints?)",
+    joint_temperature = Parameter("Temperatures in Robot (Joints?)",
                        datatype=ArrayOf(FloatRange()),
                        default = 'none',
                        readonly = True)
@@ -172,15 +172,18 @@ class UR_Robot(HasIO,Drivable, URRobot):
         self.read_status()
         self.read_coords()
 
+
     def read_coords(self):
         return self.bot.getl()
     
-    def read_joints(self):
+
+    def read_joint_position(self):
         return self.bot.getj()
     
 
     def read_model(self):
         return str(self.communicate('get robot model'))
+
 
     def read_serial(self):
         return str(self.communicate('get serial number'))
@@ -188,6 +191,37 @@ class UR_Robot(HasIO,Drivable, URRobot):
 
     def read_ur_version(self):
         return str(self.communicate('version'))
+    
+
+    def read_robotmode(self):
+        robo_mode =  str(self.communicate('robotmode')).removeprefix('Robotmode: ')
+    
+        if robo_mode in ROBOT_MODE_ENUM:
+            return robo_mode
+
+        raise ReadFailedError("Unknown robot mode:" + robo_mode)
+    
+
+    def read_powerstate(self):
+        self.read_robotmode()
+        if self.robotmode.value > 4:
+            return 'POWER_ON' 
+        else:
+            return 'POWER_OFF'
+
+
+    def write_powerstate(self,powerstate):
+        p_str = powerstate.name
+        
+        self.communicate(POWER_STATE.get(p_str,None))
+        
+        if powerstate == 'POWER_ON':
+            self.communicate('brake release')
+        
+        
+        self.powerstate = self.read_powerstate()
+        
+        return powerstate.name
     
 
     def read_status(self):
@@ -224,7 +258,7 @@ class UR_Robot(HasIO,Drivable, URRobot):
             raise ImpossibleError('Robot stopped')
         if self.status == IDLE:
             self.bot.down()
-            self.bot.up()
+            self.bot.up()       #do something
             
             
     
