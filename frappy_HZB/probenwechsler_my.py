@@ -44,7 +44,7 @@ class Magazin:
     def get_sample(self,samplePos):
         return self.Mag[samplePos-1]     
 
-    def mag2Arrayof(self):
+    def mag2Arrayof(self): #needed?
         storage_arr = []
         for sample in  self.Mag:
             if sample:
@@ -95,7 +95,7 @@ class SampleToMeasure(HasIO,Drivable):
     def read_target(self):
         return self.target
     
-    def write_target(self,target):
+    def write_target(self,target): #next functions already integrated
            
         ### Mount to measurement position:
         if target != '':
