@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 # This program is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -27,9 +28,7 @@ import numpy as np
 from scipy.interpolate import splev, splrep  # pylint: disable=import-error
 
 from frappy.core import Attached, BoolType, Parameter, Readable, StringType, \
-    FloatRange, nopoll
-from frappy_psi.convergence import HasConvergence
-from frappy_psi.picontrol import PImixin
+    FloatRange
 
 
 def linear(x):
@@ -197,44 +196,35 @@ class Sensor(Readable):
         if self.description == '_':
             self.description = f'{self.rawsensor!r} calibrated with curve {self.calib!r}'
 
+    def doPoll(self):
+        self.read_status()
+
     def write_calib(self, value):
         self._calib = CalCurve(value)
         return value
 
-    def _get_value(self, rawvalue):
+    def update_value(self, value):
         if self.abs:
-            rawvalue = abs(float(rawvalue))
-        return self._calib(rawvalue)
+            value = abs(float(value))
+        self.value = self._calib(value)
+        self._value_error = None
 
-    def _get_status(self, rawstatus):
-        return rawstatus if self._value_error is None else (self.Status.ERROR, self._value_error)
+    def error_update_value(self, err):
+        if self.abs and str(err) == 'R_UNDER':  # hack: ignore R_UNDER from ls370
+            self._value_error = None
+            return None
+        self._value_error = repr(err)
+        raise err
 
-    def update_value(self, rawvalue, err=None):
-        if err:
-            if self.abs and str(err) == 'R_UNDER':  # hack: ignore R_UNDER from ls370
-                self._value_error = None
-                return
-            err = repr(err)
+    def update_status(self, value):
+        if self._value_error is None:
+            self.status = value
         else:
-            try:
-                self.value = self._get_value(rawvalue)
-            except Exception as e:
-                err = repr(e)
-        if err != self._value_error:
-            self._value_error = err
-            self.status = self._get_status(self.rawsensor.status)
+            self.status = self.Status.ERROR, self._value_error
 
-    def update_status(self, rawstatus):
-        self.status = self._get_status(rawstatus)
-
-    @nopoll
     def read_value(self):
-        return self._get_value(self.rawsensor.read_value())
+        return self._calib(self.rawsensor.read_value())
 
-    @nopoll
     def read_status(self):
-        return self._get_status(self.rawsensor.read_status())
-
-
-class SoftPiLoop(HasConvergence, PImixin, Sensor):
-    pass
+        self.update_status(self.rawsensor.status)
+        return self.status

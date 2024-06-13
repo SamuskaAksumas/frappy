@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 # Copyright (c) 2015-2023 by the authors, see LICENSE
 #
@@ -25,10 +26,13 @@ import time
 from frappy.gui.qt import QLabel, Qt, QVBoxLayout, QWidget, pyqtSignal
 
 from frappy.gui.util import Colors
-from frappy.lib import delayed_import
 
-np = delayed_import('numpy')
-pg = delayed_import('pyqtgraph')
+try:
+    import numpy as np
+    import pyqtgraph as pg
+except ImportError:
+    pg = None
+    np = None
 
 
 def getPlotWidget(parent):

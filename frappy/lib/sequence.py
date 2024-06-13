@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -141,7 +142,6 @@ class SequencerMixin:
         return self.Status.IDLE, ''
 
     def stop(self):
-        """stop sequence"""
         if self.seq_is_alive():
             self._seq_stopflag = True
 

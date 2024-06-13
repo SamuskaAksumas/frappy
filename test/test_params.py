@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -24,9 +25,9 @@
 # no fixtures needed
 import pytest
 
-from frappy.datatypes import BoolType, FloatRange, IntRange, StructOf
+from frappy.datatypes import BoolType, FloatRange, IntRange
 from frappy.errors import ProgrammingError
-from frappy.modulebase import HasAccessibles
+from frappy.modules import HasAccessibles
 from frappy.params import Command, Parameter
 
 
@@ -54,29 +55,6 @@ def test_Command():
     assert Mod.cmd2.exportProperties() == {'datainfo': {'type': 'command', 'argument': {'type': 'int', 'max': 9, 'min': -9},
                                                         'result': {'type': 'int', 'max': 1, 'min': -1}},
                                            'description': 'do some other thing'}
-
-
-def test_cmd_struct_opt():
-    with pytest.raises(ProgrammingError):
-        class WrongName(HasAccessibles):  # pylint: disable=unused-variable
-            @Command(StructOf(a=IntRange(), b=IntRange()))
-            def cmd(self, a, c):
-                pass
-    class Mod(HasAccessibles):
-        @Command(StructOf(a=IntRange(), b=IntRange()))
-        def cmd(self, a=5, b=5):
-            pass
-    assert Mod.cmd.datatype.argument.optional == ['a', 'b']
-    class Mod2(HasAccessibles):
-        @Command(StructOf(a=IntRange(), b=IntRange()))
-        def cmd(self, a, b=5):
-            pass
-    assert Mod2.cmd.datatype.argument.optional == ['b']
-    class Mod3(HasAccessibles):
-        @Command(StructOf(a=IntRange(), b=IntRange()))
-        def cmd(self, a, b):
-            pass
-    assert Mod3.cmd.datatype.argument.optional == []
 
 
 def test_Parameter():

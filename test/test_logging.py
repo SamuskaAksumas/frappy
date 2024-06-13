@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -28,24 +29,11 @@ import frappy.logging
 from frappy.logging import logger, generalConfig, HasComlog
 
 
-class SecNodeStub:
-    def __init__(self):
-        self.modules = {}
-        self.name = ""
-
-    def add_module(self, module, modname):
-        self.modules[modname] = module
-
-    def get_module(self, modname):
-        return self.modules[modname]
-
-
 class ServerStub:
     restart = None
     shutdown = None
 
     def __init__(self):
-        self.secnode = SecNodeStub()
         self.dispatcher = Dispatcher('', logger.log.getChild('dispatcher'), {}, self)
 
 
@@ -110,7 +98,7 @@ def init_(monkeypatch):
                 def __init__(self, name, srv, **kwds):
                     kwds['description'] = ''
                     super().__init__(name or 'mod', logger.log.getChild(name), kwds, srv)
-                    srv.secnode.add_module(self, name)
+                    srv.dispatcher.register_module(self, name, name)
                     self.result[:] = []
 
                 def earlyInit(self):

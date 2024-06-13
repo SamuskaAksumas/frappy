@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -194,18 +195,17 @@ class DispatcherStub:
         generalConfig.testinit(omit_unchanged_within=0)
         self.updates = updates
 
-    def announce_update(self, moduleobj, pobj):
-        assert moduleobj.name == 'obj'
+    def announce_update(self, modulename, pname, pobj):
+        assert modulename == 'obj'
         if pobj.readerror:
-            self.updates.append((pobj.name, pobj.readerror))
+            self.updates.append((pname, pobj.readerror))
         else:
-            self.updates.append((pobj.name, pobj.value))
+            self.updates.append((pname, pobj.value))
 
 
 class ServerStub:
     def __init__(self, updates):
         self.dispatcher = DispatcherStub(updates)
-        self.secnode = None
 
 
 class Mod(HasStates, Drivable):

@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -176,7 +177,7 @@ class HasConvergence:
 
     def convergence_interrupt(self, state):
         """stopping"""
-        self.__set_status(*state.stop_status)  # stop called
+        self.__set_status(state.stop_status)  # stop called
         return self.convergence_instable
 
     def stop(self):
@@ -196,4 +197,3 @@ class HasConvergence:
         if self.pollInfo:
             self.pollInfo.trigger(True)
         return value
-

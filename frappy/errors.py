@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -218,7 +219,7 @@ class IsErrorError(SECoPError):
 
 class DisabledError(SECoPError):
     """The requested action can not be performed while the module is disabled"""
-    name = 'Disabled'
+    name = 'disabled'
 
 
 class ImpossibleError(SECoPError):
@@ -232,7 +233,7 @@ class ReadFailedError(SECoPError):
 
 
 class OutOfRangeError(SECoPError):
-    """The value read from the hardware is out of sensor or calibration range"""
+    """The requested parameter can not be read just now"""
     name = 'OutOfRange'
 
 

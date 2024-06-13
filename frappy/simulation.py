@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -31,13 +32,12 @@ from frappy.modules import Drivable, Module, Parameter, Readable, Writable, Comm
 
 class SimBase:
     def __new__(cls, devname, logger, cfgdict, dispatcher):
-        extra_params = cfgdict.pop('extra_params', '')['value']
-        if isinstance(extra_params, str):
-            extra_params = [v.strip() for v in extra_params.split(',')]
+        extra_params = cfgdict.pop('extra_params', '') or cfgdict.pop('.extra_params', '')
         attrs = {}
         if extra_params:
-            for k in extra_params:
-                attrs[k] = Parameter(f'extra_param: {k}',
+            for k in extra_params['value'].split(','):
+                k = k.strip()
+                attrs[k] = Parameter(f'extra_param: {k.strip()}',
                                      datatype=FloatRange(),
                                      default=0.0)
 
@@ -54,7 +54,7 @@ class SimBase:
 
                 attrs['write_' + k] = writer
 
-        return super().__new__(type(f'SimBase_{devname}', (cls,), attrs))
+        return object.__new__(type(f'SimBase_{devname}', (cls,), attrs))
 
     def initModule(self):
         super().initModule()

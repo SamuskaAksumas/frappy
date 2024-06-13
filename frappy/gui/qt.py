@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -42,10 +43,10 @@ try:
         QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout, \
         QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, \
         QMenu, QMessageBox, QPlainTextEdit, QPushButton, QRadioButton, \
-        QScrollArea, QSizePolicy, QSlider, QSpacerItem, QSpinBox, QStyle, \
+        QScrollArea, QSizePolicy, QSpacerItem, QSpinBox, QStyle, \
         QStyleOptionTab, QStylePainter, QTabBar, QTabWidget, QTextEdit, \
         QToolButton, QTreeView, QTreeWidget, QTreeWidgetItem, QVBoxLayout, \
-        QWidget
+        QWidget,QSlider
 
     import frappy.gui.resources_qt6
 
@@ -62,9 +63,9 @@ except ImportError as e:
         QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFrame, \
         QGridLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, \
         QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QPushButton, \
-        QRadioButton, QScrollArea, QShortcut, QSizePolicy, QSlider, \
-        QSpacerItem, QSpinBox, QStyle, QStyleOptionTab, QStylePainter, \
-        QTabBar, QTabWidget, QTextEdit, QToolButton, QTreeView, QTreeWidget, \
-        QTreeWidgetItem, QVBoxLayout, QWidget
+        QRadioButton, QScrollArea, QShortcut, QSizePolicy, QSpacerItem, \
+        QSpinBox, QStyle, QStyleOptionTab, QStylePainter, QTabBar, \
+        QTabWidget, QTextEdit, QToolButton, QTreeView, QTreeWidget, \
+        QTreeWidgetItem, QVBoxLayout, QWidget, QSlider
 
     import frappy.gui.resources_qt5

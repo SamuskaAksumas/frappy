@@ -18,77 +18,122 @@
 #   Markus Zolliker <markus.zolliker@psi.ch>
 #
 # *****************************************************************************
-"""TCP interface to the SECoP Server"""
+"""provides tcp interface to the SECoP Server"""
 
 import errno
 import os
 import socket
 import socketserver
+import sys
+import threading
 import time
 
 from frappy.datatypes import BoolType, StringType
-from frappy.lib import SECoP_DEFAULT_PORT
+from frappy.errors import SECoPError
+from frappy.lib import formatException, formatExtendedStack, \
+    formatExtendedTraceback, SECoP_DEFAULT_PORT
 from frappy.properties import Property
 from frappy.protocol.interface import decode_msg, encode_msg_frame, get_msg
-from frappy.protocol.interface.handler import ConnectionClose, \
-    RequestHandler, DecodeError
-from frappy.protocol.messages import HELPREQUEST
-
+from frappy.protocol.messages import ERRORPREFIX, HELPREPLY, HELPREQUEST, \
+    HelpMessage
 
 MESSAGE_READ_SIZE = 1024
+HELP = HELPREQUEST.encode()
 
 
-def format_address(addr):
-    if len(addr) == 2:
-        return '%s:%d' % addr
-    address, port = addr[0:2]
-    if address.startswith('::ffff'):
-        return '%s:%d' % (address[7:], port)
-    return '[%s]:%d' % (address, port)
+class TCPRequestHandler(socketserver.BaseRequestHandler):
 
-
-class TCPRequestHandler(RequestHandler):
     def setup(self):
-        super().setup()
-        self.request.settimeout(1)
-        self.data = b''
+        self.log = self.server.log
+        self.running = True
+        self.send_lock = threading.Lock()
 
-    def finish(self):
-        """called when handle() terminates, i.e. the socket closed"""
-        super().finish()
-        # close socket
-        try:
-            self.request.shutdown(socket.SHUT_RDWR)
-        except Exception:
-            pass
-        finally:
-            self.request.close()
+    def handle(self):
+        """handle a new tcp-connection"""
+        # copy state info
+        mysocket = self.request
+        clientaddr = self.client_address
+        serverobj = self.server
 
-    def ingest(self, newdata):
-        self.data += newdata
+        self.log.info("handling new connection from %s",  format_address(clientaddr))
+        data = b''
 
-    def next_message(self):
-        try:
-            message, self.data = get_msg(self.data)
-            if message is None:
-                return None
-            if message.strip() == b'':
-                return (HELPREQUEST, None, None)
-            return decode_msg(message)
-        except Exception as e:
-            raise DecodeError('exception in receive', raw_msg=message) from e
+        # notify dispatcher of us
+        serverobj.dispatcher.add_connection(self)
 
-    def receive(self):
-        try:
-            data = self.request.recv(MESSAGE_READ_SIZE)
+        # copy relevant settings from Interface
+        detailed_errors = serverobj.detailed_errors
+
+        mysocket.settimeout(1)
+        # start serving
+        while self.running:
+            try:
+                newdata = mysocket.recv(MESSAGE_READ_SIZE)
+                if not newdata:
+                    # no timeout error, but no new data -> connection closed
+                    return
+                data = data + newdata
+            except socket.timeout:
+                continue
+            except socket.error as e:
+                self.log.exception(e)
+                return
             if not data:
-                raise ConnectionClose('socket was closed')
-            return data
-        except socket.timeout:
-            return None
-        except socket.error as e:
-            self.log.exception(e)
-            raise ConnectionClose() from e
+                continue
+            # put data into (de-) framer,
+            # put frames into (de-) coder and if a message appear,
+            # call dispatcher.handle_request(self, message)
+            # dispatcher will queue the reply before returning
+            while self.running:
+                origin, data = get_msg(data)
+                if origin is None:
+                    break  # no more messages to process
+                origin = origin.strip()
+                if origin in (HELP, b''):  # empty string -> send help message
+                    for idx, line in enumerate(HelpMessage.splitlines()):
+                        # not sending HELPREPLY here, as there should be only one reply for every request
+                        self.send_reply(('_', f'{idx + 1}', line))
+                    # ident matches request
+                    self.send_reply((HELPREPLY, None, None))
+                    continue
+                try:
+                    msg = decode_msg(origin)
+                except Exception as err:
+                    # we have to decode 'origin' here
+                    # use latin-1, as utf-8 or ascii may lead to encoding errors
+                    msg = origin.decode('latin-1').split(' ', 3) + [None]  # make sure len(msg) > 1
+                    result = (ERRORPREFIX + msg[0], msg[1], ['InternalError', str(err),
+                                                             {'exception': formatException(),
+                                                              'traceback': formatExtendedStack()}])
+                    print('--------------------')
+                    print(formatException())
+                    print('--------------------')
+                    print(formatExtendedTraceback(sys.exc_info()))
+                    print('====================')
+                else:
+                    try:
+                        result = serverobj.dispatcher.handle_request(self, msg)
+                    except SECoPError as err:
+                        result = (ERRORPREFIX + msg[0], msg[1], [err.name, str(err),
+                                                                 {'exception': formatException(),
+                                                                  'traceback': formatExtendedStack()}])
+                    except Exception as err:
+                        # create Error Obj instead
+                        result = (ERRORPREFIX + msg[0], msg[1], ['InternalError', repr(err),
+                                                                 {'exception': formatException(),
+                                                                  'traceback': formatExtendedStack()}])
+                        print('--------------------')
+                        print(formatException())
+                        print('--------------------')
+                        print(formatExtendedTraceback(sys.exc_info()))
+                        print('====================')
+
+                if not result:
+                    self.log.error('empty result upon msg %s', repr(msg))
+                if result[0].startswith(ERRORPREFIX) and not detailed_errors:
+                    # strip extra information
+                    result[2][2].clear()
+                self.send_reply(result)
 
     def send_reply(self, data):
         """send reply
@@ -111,9 +156,18 @@ class TCPRequestHandler(RequestHandler):
                     self.log.error('ERROR in send_reply %r', e)
                     self.running = False
 
-    def format(self):
-        return f'from {format_address(self.client_address)}'
-
+    def finish(self):
+        """called when handle() terminates, i.e. the socket closed"""
+        self.log.info('closing connection from %s', format_address(self.client_address))
+        # notify dispatcher
+        self.server.dispatcher.remove_connection(self)
+        # close socket
+        try:
+            self.request.shutdown(socket.SHUT_RDWR)
+        except Exception:
+            pass
+        finally:
+            self.request.close()
 
 class DualStackTCPServer(socketserver.ThreadingTCPServer):
     """Subclassed to provide IPv6 capabilities as socketserver only uses IPv4"""
@@ -176,3 +230,19 @@ class TCPServer(DualStackTCPServer):
         if ntry:
             self.log.warning('tried again %d times after "Address already in use"', ntry)
         self.log.info("TCPServer initiated")
+
+    # py35 compatibility
+    if not hasattr(socketserver.ThreadingTCPServer, '__exit__'):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.server_close()
+
+def format_address(addr):
+    if len(addr) == 2:
+        return '%s:%d' % addr
+    address, port = addr[0:2]
+    if address.startswith('::ffff'):
+        return '%s:%d' % (address[7:], port)
+    return '[%s]:%d' % (address, port)

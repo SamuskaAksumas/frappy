@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -198,10 +199,6 @@ class MotorValve(PersistentMixin, Drivable):
 
     @Command
     def stop(self):
-        """stop at current position
-
-        state will probably be undefined
-        """
         self._state.stop()
         self.motor.stop()
 

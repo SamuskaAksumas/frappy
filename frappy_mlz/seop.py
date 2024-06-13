@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -24,16 +25,16 @@
 
 from os import path
 
+# eventually he3control
+from he3d import he3cell  # pylint: disable=import-error
+
 from frappy.core import Attached
 from frappy.datatypes import ArrayOf, FloatRange, IntRange, StatusType, \
     StringType, TupleOf
 from frappy.errors import CommandRunningError
-from frappy.lib import delayed_import
 from frappy.modules import Command, Drivable, Module, Parameter, Property, \
     Readable
 from frappy.rwhandler import CommonReadHandler
-
-he3d = delayed_import('he3d')
 
 integral = IntRange()
 floating = FloatRange()
@@ -52,7 +53,7 @@ class Cell(Module):
 
     def initModule(self):
         super().initModule()
-        self.cell = he3d.he3cell.He3_cell(
+        self.cell = he3cell.He3_cell(
             path.join(self.config_directory, 'cell.yml'))
 
     # Commands

@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -29,12 +30,8 @@ from frappy.lib import generalConfig
 from frappy.persistent import PersistentParam, PersistentMixin
 
 
-class SecNodeStub:
-    pass
-
-
 class DispatcherStub:
-    def announce_update(self, moduleobj, pobj):
+    def announce_update(self, modulename, pname, pobj):
         pass
 
 
@@ -51,8 +48,7 @@ logger = LoggerStub()
 class ServerStub:
     def __init__(self, equipment_id):
         self.dispatcher = DispatcherStub()
-        self.secnode = SecNodeStub()
-        self.secnode.equipment_id = equipment_id
+        self.dispatcher.equipment_id = equipment_id
 
 
 class Mod(PersistentMixin, Module):

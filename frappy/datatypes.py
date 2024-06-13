@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -89,11 +90,7 @@ class DataType(HasProperties):
 
     def export_datatype(self):
         """return a python object which after jsonifying identifies this datatype"""
-        raise ProgrammingError(
-            f"{type(self).__name__} is not able to be exported to SECoP. "
-            f"It is intended for internal use only."
-        )
-
+        raise NotImplementedError
 
     def export_value(self, value):
         """if needed, reformat value for transport"""
@@ -105,7 +102,7 @@ class DataType(HasProperties):
         note: for importing from gui/configfile/commandline use :meth:`from_string`
         instead.
         """
-        return self(value)
+        return value
 
     def format_value(self, value, unit=None):
         """format a value of this type into a str string
@@ -194,8 +191,8 @@ class HasUnit:
 class FloatRange(HasUnit, DataType):
     """(restricted) float type
 
-    :param min: (property **min**)
-    :param max: (property **max**)
+    :param minval: (property **min**)
+    :param maxval: (property **max**)
     :param kwds: any of the properties below
     """
     min = Property('low limit', Stub('FloatRange'), extname='min', default=-sys.float_info.max)
@@ -206,11 +203,11 @@ class FloatRange(HasUnit, DataType):
     relative_resolution = Property('relative resolution', Stub('FloatRange', 0),
                                    extname='relative_resolution', default=1.2e-7)
 
-    def __init__(self, min=None, max=None, **kwds):  # pylint: disable=redefined-builtin
+    def __init__(self, minval=None, maxval=None, **kwds):
         super().__init__()
-        self.set_properties(min=min if min is not None else -sys.float_info.max,
-                            max=max if max is not None else sys.float_info.max,
-                            **kwds)
+        kwds['min'] = minval if minval is not None else -sys.float_info.max
+        kwds['max'] = maxval if maxval is not None else sys.float_info.max
+        self.set_properties(**kwds)
 
     def checkProperties(self):
         self.default = 0 if self.min <= 0 <= self.max else self.min
@@ -250,13 +247,17 @@ class FloatRange(HasUnit, DataType):
     def __repr__(self):
         hints = self.get_info()
         if 'min' in hints:
-            hints['min'] = hints.pop('min')
+            hints['minval'] = hints.pop('min')
         if 'max' in hints:
-            hints['max'] = hints.pop('max')
+            hints['maxval'] = hints.pop('max')
         return 'FloatRange(%s)' % (', '.join('%s=%r' % (k, v) for k, v in hints.items()))
 
     def export_value(self, value):
         """returns a python object fit for serialisation"""
+        return float(value)
+
+    def import_value(self, value):
+        """returns a python object from serialisation"""
         return float(value)
 
     def from_string(self, text):
@@ -280,18 +281,18 @@ class FloatRange(HasUnit, DataType):
 class IntRange(DataType):
     """restricted int type
 
-    :param min: (property **min**)
-    :param max: (property **max**)
+    :param minval: (property **min**)
+    :param maxval: (property **max**)
     """
     min = Property('minimum value', Stub('IntRange', -UNLIMITED, UNLIMITED), extname='min', mandatory=True)
     max = Property('maximum value', Stub('IntRange', -UNLIMITED, UNLIMITED), extname='max', mandatory=True)
     # a unit on an int is now allowed in SECoP, but do we need them in Frappy?
     # unit = Property('physical unit', StringType(), extname='unit', default='')
 
-    def __init__(self, min=None, max=None):  # pylint: disable=redefined-builtin
+    def __init__(self, minval=None, maxval=None):
         super().__init__()
-        self.set_properties(min=DEFAULT_MIN_INT if min is None else min,
-                            max=DEFAULT_MAX_INT if max is None else max)
+        self.set_properties(min=DEFAULT_MIN_INT if minval is None else minval,
+                            max=DEFAULT_MAX_INT if maxval is None else maxval)
 
     def checkProperties(self):
         self.default = 0 if self.min <= 0 <= self.max else self.min
@@ -314,7 +315,7 @@ class IntRange(DataType):
             except Exception:
                 raise WrongTypeError(f'can not convert {shortrepr(value)} to an int') from None
         if round(fvalue) != fvalue:
-            raise WrongTypeError(f'{value} should be an int')
+            raise WrongTypeError('%r should be an int')
         return value
 
     def validate(self, value, previous=None):
@@ -335,6 +336,10 @@ class IntRange(DataType):
 
     def export_value(self, value):
         """returns a python object fit for serialisation"""
+        return int(value)
+
+    def import_value(self, value):
+        """returns a python object from serialisation"""
         return int(value)
 
     def from_string(self, text):
@@ -359,8 +364,8 @@ class IntRange(DataType):
 class ScaledInteger(HasUnit, DataType):
     """scaled integer (= fixed resolution float) type
 
-    :param min: (property **min**)
-    :param max: (property **max**)
+    :param minval: (property **min**)
+    :param maxval: (property **max**)
     :param kwds: any of the properties below
 
     note: limits are for the scaled float value
@@ -375,8 +380,7 @@ class ScaledInteger(HasUnit, DataType):
     relative_resolution = Property('relative resolution', FloatRange(0),
                                    extname='relative_resolution', default=1.2e-7)
 
-    # pylint: disable=redefined-builtin
-    def __init__(self, scale, min=None, max=None, absolute_resolution=None, **kwds):
+    def __init__(self, scale, minval=None, maxval=None, absolute_resolution=None, **kwds):
         super().__init__()
         try:
             scale = float(scale)
@@ -386,8 +390,8 @@ class ScaledInteger(HasUnit, DataType):
             absolute_resolution = scale
         self.set_properties(
             scale=scale,
-            min=DEFAULT_MIN_INT * scale if min is None else float(min),
-            max=DEFAULT_MAX_INT * scale if max is None else float(max),
+            min=DEFAULT_MIN_INT * scale if minval is None else float(minval),
+            max=DEFAULT_MAX_INT * scale if maxval is None else float(maxval),
             absolute_resolution=absolute_resolution,
             **kwds)
 
@@ -453,10 +457,7 @@ class ScaledInteger(HasUnit, DataType):
 
     def import_value(self, value):
         """returns a python object from serialisation"""
-        try:
-            return self.scale * int(value)
-        except Exception:
-            raise WrongTypeError(f'can not import {shortrepr(value)} to scaled') from None
+        return self.scale * int(value)
 
     def from_string(self, text):
         value = float(text)
@@ -507,6 +508,10 @@ class EnumType(DataType):
     def export_value(self, value):
         """returns a python object fit for serialisation"""
         return int(self(value))
+
+    def import_value(self, value):
+        """returns a python object from serialisation"""
+        return self(value)
 
     def __call__(self, value):
         """accepts integers and strings, converts to EnumMember (may be used like an int)"""
@@ -579,10 +584,7 @@ class BLOBType(DataType):
 
     def import_value(self, value):
         """returns a python object from serialisation"""
-        try:
-            return b64decode(value)
-        except Exception:
-            raise WrongTypeError(f'can not b64decode {shortrepr(value)}') from None
+        return b64decode(value)
 
     def from_string(self, text):
         value = text
@@ -653,6 +655,10 @@ class StringType(DataType):
         """returns a python object fit for serialisation"""
         return f'{value}'
 
+    def import_value(self, value):
+        """returns a python object from serialisation"""
+        return str(value)
+
     def from_string(self, text):
         value = str(text)
         return self(value)
@@ -711,6 +717,10 @@ class BoolType(DataType):
 
     def export_value(self, value):
         """returns a python object fit for serialisation"""
+        return self(value)
+
+    def import_value(self, value):
+        """returns a python object from serialisation"""
         return self(value)
 
     def from_string(self, text):
@@ -802,7 +812,7 @@ class ArrayOf(DataType):
             return tuple(self.members(v) for v in value)
         except Exception as e:
             errcls = RangeError if isinstance(e, RangeError) else WrongTypeError
-            raise errcls(f'can not convert some array elements: {e!r}') from e
+            raise errcls('can not convert some array elements') from e
 
     def validate(self, value, previous=None):
         self.check_type(value)
@@ -812,7 +822,7 @@ class ArrayOf(DataType):
             return tuple(self.members.validate(v) for v in value)
         except Exception as e:
             errcls = RangeError if isinstance(e, RangeError) else WrongTypeError
-            raise errcls(f'some array elements are invalid: {e!r}') from e
+            raise errcls('some array elements are invalid') from e
 
     def export_value(self, value):
         """returns a python object fit for serialisation"""
@@ -897,7 +907,7 @@ class TupleOf(DataType):
             return tuple(sub(elem) for sub, elem in zip(self.members, value))
         except Exception as e:
             errcls = RangeError if isinstance(e, RangeError) else WrongTypeError
-            raise errcls(f'can not convert some tuple elements: {e!r}') from e
+            raise errcls('can not convert some tuple elements') from e
 
     def validate(self, value, previous=None):
         self.check_type(value)
@@ -907,7 +917,7 @@ class TupleOf(DataType):
             return tuple(sub.validate(v, p) for sub, v, p in zip(self.members, value, previous))
         except Exception as e:
             errcls = RangeError if isinstance(e, RangeError) else WrongTypeError
-            raise errcls(f'some tuple elements are invalid: {e!r}') from e
+            raise errcls('some tuple elements are invalid') from e
 
     def export_value(self, value):
         """returns a python object fit for serialisation"""
@@ -982,7 +992,7 @@ class StructOf(DataType):
         return res
 
     def __repr__(self):
-        opt = f', optional={self.optional!r}' if set(self.optional) != set(self.members) else ''
+        opt = f', optional={self.optional!r}' if set(self.optional) == set(self.members) else ''
         return 'StructOf(%s%s)' % (', '.join(
             ['%s=%s' % (n, repr(st)) for n, st in list(self.members.items())]), opt)
 
@@ -1221,7 +1231,6 @@ class OrType(DataType):
         self.types = types
         self.default = self.types[0].default
 
-
     def __call__(self, value):
         """accepts any of the given types, takes the first valid"""
         for t in self.types:
@@ -1244,19 +1253,15 @@ UInt64 = IntRange(0, (1 << 64) - 1)
 
 # Goodie: Convenience Datatypes for Programming
 class LimitsType(TupleOf):
-    def __init__(self, member):
-        super().__init__(member, member)
+    def __init__(self, members):
+        super().__init__(members, members)
 
-    def validate(self, value, previous=None):
+    def __call__(self, value):
         """accepts an ordered tuple of numeric member types"""
-        limits = TupleOf.validate(self, value, previous)
+        limits = TupleOf.validate(self, value)
         if limits[1] < limits[0]:
-            raise RangeError(f'maximum value {limits[1]} must be greater than '
-                             f'minimum value {limits[0]}')
+            raise RangeError(f'Maximum Value {limits[1]} must be greater than minimum value {limits[0]}!')
         return limits
-
-    def copy(self):
-        return LimitsType(TupleOf.copy(self).members[0])
 
 
 class StatusType(TupleOf):
@@ -1322,11 +1327,11 @@ DATATYPES = {
     'bool': lambda **kwds:
         BoolType(),
     'int': lambda min, max, **kwds:
-        IntRange(min=min, max=max),
+        IntRange(minval=min, maxval=max),
     'scaled': lambda scale, min, max, **kwds:
-        ScaledInteger(scale=scale, min=min*scale, max=max*scale, **floatargs(kwds)),
+        ScaledInteger(scale=scale, minval=min*scale, maxval=max*scale, **floatargs(kwds)),
     'double': lambda min=None, max=None, **kwds:
-        FloatRange(min=min, max=max, **floatargs(kwds)),
+        FloatRange(minval=min, maxval=max, **floatargs(kwds)),
     'blob': lambda maxbytes, minbytes=0, **kwds:
         BLOBType(minbytes=minbytes, maxbytes=maxbytes),
     'string': lambda minchars=0, maxchars=None, isUTF8=False, **kwds:

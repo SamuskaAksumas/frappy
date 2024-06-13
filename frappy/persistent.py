@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -77,14 +78,17 @@ class PersistentMixin(Module):
         super().__init__(name, logger, cfgdict, srv)
         persistentdir = os.path.join(generalConfig.logdir, 'persistent')
         os.makedirs(persistentdir, exist_ok=True)
-        self.persistentFile = os.path.join(persistentdir, f'{self.secNode.equipment_id}.{self.name}.json')
+        self.persistentFile = os.path.join(persistentdir, f'{self.DISPATCHER.equipment_id}.{self.name}.json')
         self.initData = {}  # "factory" settings
         loaded = self.loadPersistentData()
-        for pname, pobj in self.parameters.items():
+        for pname in self.parameters:
+            pobj = self.parameters[pname]
             flag = getattr(pobj, 'persistent', False)
             if flag:
                 if flag == 'auto':
-                    self.addCallback(pname, self.saveParameters)
+                    def cb(value, m=self):
+                        m.saveParameters()
+                    self.valueCallbacks[pname].append(cb)
                 self.initData[pname] = pobj.value
                 if not pobj.given:
                     if pname in loaded:
@@ -127,18 +131,16 @@ class PersistentMixin(Module):
         self.writeInitParams()
         return loaded
 
-    def saveParameters(self, _=None):
+    def saveParameters(self):
         """save persistent parameters
 
         - to be called regularly explicitly by the module
         - the caller has to make sure that this is not called after
           a power down of the connected hardware before loadParameters
-
-        dummy argument to avoid closure for callback
         """
         if self.writeDict:
             # do not save before all values are written to the hw, as potentially
-            # factory default values were read in the meantime
+            # factory default values were read in the mean time
             return
         self.__save_params()
 

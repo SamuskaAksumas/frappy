@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -54,8 +55,6 @@ class RemoteLogHandler(mlzlog.Handler):
     def __init__(self):
         super().__init__()
         self.subscriptions = {}  # dict[modname] of tuple(mobobj, dict [conn] of level)
-        # None will be replaced by a callback when one is first installed
-        self.send_log = None
 
     def emit(self, record):
         """unused"""
@@ -63,18 +62,18 @@ class RemoteLogHandler(mlzlog.Handler):
     def handle(self, record):
         modname = record.name.split('.')[-1]
         try:
-            subscriptions = self.subscriptions[modname]
+            modobj, subscriptions = self.subscriptions[modname]
         except KeyError:
             return
         for conn, lev in subscriptions.items():
             if record.levelno >= lev:
-                self.send_log(  # pylint: disable=not-callable
-                    conn, modname, LEVEL_NAMES[record.levelno],
+                modobj.DISPATCHER.send_log_msg(
+                    conn, modobj.name, LEVEL_NAMES[record.levelno],
                     record.getMessage())
 
-    def set_conn_level(self, modname, conn, level):
+    def set_conn_level(self, modobj, conn, level):
         level = check_level(level)
-        subscriptions = self.subscriptions.setdefault(modname, {})
+        modobj, subscriptions = self.subscriptions.setdefault(modobj.name, (modobj, {}))
         if level == OFF:
             subscriptions.pop(conn, None)
         else:
@@ -128,7 +127,7 @@ class HasComlog:
         if self.comlog and generalConfig.initialized and generalConfig.comlog:
             self._comLog = mlzlog.Logger(f'COMLOG.{self.name}')
             self._comLog.handlers[:] = []
-            directory = join(logger.logdir, logger.rootname, 'comlog', self.secNode.name)
+            directory = join(logger.logdir, logger.rootname, 'comlog', self.DISPATCHER.name)
             self._comLog.addHandler(ComLogfileHandler(
                 directory, self.name, max_days=generalConfig.getint('comlog_days', 7)))
             return

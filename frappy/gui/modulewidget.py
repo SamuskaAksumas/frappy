@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 # Copyright (c) 2015-2023 by the authors, see LICENSE
 #
@@ -24,9 +25,9 @@ from frappy.gui.qt import QColor, QDialog, QHBoxLayout, QIcon, QLabel, \
     QLineEdit, QMessageBox, QPropertyAnimation, QPushButton, Qt, QToolButton, \
     QWidget, pyqtProperty, pyqtSignal
 
-from frappy.gui.inputwidgets import get_input_widget
 from frappy.gui.util import Colors, loadUi
 from frappy.gui.valuewidgets import get_widget
+from frappy.gui.inputwidgets import get_input_widget
 
 
 class CommandDialog(QDialog):
@@ -54,11 +55,7 @@ class CommandDialog(QDialog):
         self.resize(self.sizeHint())
 
     def get_value(self):
-        try:
-            return self.widgets[0].get_value()
-        except Exception as e:
-            QMessageBox.warning(self.parent(), 'Operation failed', str(e))
-            return None
+        return True, self.widgets[0].get_value()
 
     def exec(self):
         if super().exec():
@@ -99,9 +96,8 @@ class CommandButton(QPushButton):
         if self._argintype:
             dlg = CommandDialog(self._cmdname, self._argintype)
             args = dlg.exec()
-            if args is not None:
-                # no errors when converting value and 'Cancel' wasn't clicked
-                self._cb(self._cmdname, args)
+            if args:  # not 'Cancel' clicked
+                self._cb(self._cmdname, args[1])
         else:
             # no need for arguments
             self._cb(self._cmdname, None)
@@ -447,8 +443,8 @@ class ModuleWidget(QWidget):
         self.paramDetails.emit(self._name, param)
 
     def _button_pressed(self, param):
+        target = self._paramInputs[param].get_input()
         try:
-            target = self._paramInputs[param].get_input()
             self._node.setParameter(self._name, param, target)
         except Exception as e:
             QMessageBox.warning(self.parent(), 'Operation failed', str(e))

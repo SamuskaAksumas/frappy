@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -239,7 +240,6 @@ class HasStates:
 
     @Command
     def stop(self):
-        """stop state machine"""
         self.stop_machine()
 
     def final_status(self, code=IDLE, text=''):

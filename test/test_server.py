@@ -28,9 +28,6 @@ from .test_config import direc  # pylint: disable=unused-import
 
 
 class LoggerStub:
-    def __init__(self):
-        self.parent = self
-
     def debug(self, fmt, *args):
         pass
 

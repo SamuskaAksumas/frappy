@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -29,10 +30,10 @@ import time
 from collections import defaultdict
 from threading import Event, RLock, current_thread
 
+import frappy.errors
 import frappy.params
-from frappy.errors import make_secop_error, SECoPError, WrongTypeError
 from frappy.datatypes import get_datatype
-from frappy.lib import mkthread
+from frappy.lib import mkthread, formatExtendedStack
 from frappy.lib.asynconn import AsynConn, ConnectionClosed
 from frappy.protocol.interface import decode_msg, encode_msg_frame
 from frappy.protocol.messages import COMMANDREQUEST, \
@@ -43,7 +44,7 @@ from frappy.protocol.messages import COMMANDREQUEST, \
 # replies to be handled for cache
 UPDATE_MESSAGES = {EVENTREPLY, READREPLY, WRITEREPLY, ERRORPREFIX + READREQUEST, ERRORPREFIX + EVENTREPLY}
 
-VERSIONFMT = re.compile(r'^[^,]*?ISSE[^,]*,SECoP,')
+VERSIONFMT= re.compile(r'^[^,]*?ISSE[^,]*,SECoP,')
 
 
 class UnregisterCallback(Exception):
@@ -68,10 +69,6 @@ class Logger:
     error = exception = warning = critical = info
 
 
-class NullLogger(Logger):
-    error = exception = warning = critical = info = Logger.noop
-
-
 class CallbackObject:
     """abstract definition for a target object for callbacks
 
@@ -86,12 +83,6 @@ class CallbackObject:
 
     def unhandledMessage(self, action, ident, data):
         """called on an unhandled message"""
-
-    def handleError(self, exc):
-        """called on errors handling messages
-
-        :param exc: the exception raised (= sys.exception())
-        """
 
     def nodeStateChange(self, online, state):
         """called when the state of the connection changes
@@ -115,13 +106,19 @@ class CacheItem(tuple):
     inheriting from tuple: compatible with old previous version of cache
     """
     def __new__(cls, value, timestamp=None, readerror=None, datatype=None):
-        obj = tuple.__new__(cls, (value, timestamp, readerror))
-        if datatype:
+        if readerror:
+            assert isinstance(readerror, Exception)
+        else:
             try:
-                # override default method
-                obj.format_value = datatype.format_value
-            except AttributeError:
-                pass
+                value = datatype.import_value(value)
+            except (KeyError, ValueError, AttributeError):
+                readerror = ValueError(f'can not import {value!r} as {datatype!r}')
+                value = None
+        obj = tuple.__new__(cls, (value, timestamp, readerror))
+        try:
+            obj.format_value = datatype.format_value
+        except AttributeError:
+            obj.format_value = lambda value, unit=None: str(value)
         return obj
 
     @property
@@ -148,11 +145,6 @@ class CacheItem(tuple):
             return repr(self[2])
         return self.format_value(self[0])
 
-    @staticmethod
-    def format_value(value, unit=None):
-        """typically overridden with datatype.format_value"""
-        return str(value)
-
     def __repr__(self):
         args = (self.value,)
         if self.timestamp:
@@ -162,22 +154,11 @@ class CacheItem(tuple):
         return f'CacheItem{repr(args)}'
 
 
-class Cache(dict):
-    class Undefined(Exception):
-        def __repr__(self):
-            return '<undefined>'
-
-    undefined = CacheItem(None, None, Undefined())
-
-    def __missing__(self, key):
-        return self.undefined
-
-
 class ProxyClient:
     """common functionality for proxy clients"""
 
     CALLBACK_NAMES = {'updateEvent', 'updateItem', 'descriptiveDataChange',
-                      'nodeStateChange', 'unhandledMessage', 'handleError'}
+                      'nodeStateChange', 'unhandledMessage'}
     online = False  # connected or reconnecting since a short time
     state = 'disconnected'  # further possible values: 'connecting', 'reconnecting', 'connected'
     log = None
@@ -185,7 +166,7 @@ class ProxyClient:
     def __init__(self):
         self.callbacks = {cbname: defaultdict(list) for cbname in self.CALLBACK_NAMES}
         # caches (module, parameter) = value, timestamp, readerror (internal names!)
-        self.cache = Cache()  # dict returning Cache.undefined for missing keys
+        self.cache = {}
 
     def register_callback(self, key, *args, **kwds):
         """register callback functions
@@ -264,24 +245,23 @@ class ProxyClient:
             except UnregisterCallback:
                 cblist.remove(cbfunc)
             except Exception as e:
-                if cbname != 'handleError':
-                    try:
-                        e.args = [f'error in callback {cbname}{args}: {e}']
-                        self.callback(None, 'handleError', e)
-                    except Exception:
-                         pass
+                # the programmer should catch all errors in callbacks
+                # if not, the log will be flooded with errors
+                if self.log:
+                    self.log.exception('error %r calling %s%r', e, cbfunc.__name__, args)
         return bool(cblist)
 
     def updateValue(self, module, param, value, timestamp, readerror):
         self.callback(None, 'updateEvent', module, param, value, timestamp, readerror)
         self.callback(module, 'updateEvent', module, param, value, timestamp, readerror)
-        self.callback((module, param), 'updateEvent', module, param, value, timestamp, readerror)
+        self.callback((module, param), 'updateEvent', module, param,value, timestamp, readerror)
 
 
 class SecopClient(ProxyClient):
     """a general SECoP client"""
     reconnect_timeout = 10
     _running = False
+    _shutdown = False
     _rxthread = None
     _txthread = None
     _connthread = None
@@ -290,17 +270,8 @@ class SecopClient(ProxyClient):
     descriptive_data = {}
     modules = {}
     _last_error = None
-    _update_error_count = 0
-    _max_error_count = 10
 
     def __init__(self, uri, log=Logger):
-        """initialize SecopClient
-
-        :param uri: the uri to connect to
-        :param log: a logger.
-                    when not given, the print command is used for messages with at least info level.
-                    when None, nothing is logged at all
-        """
         super().__init__()
         # maps expected replies to [request, Event, is_error, result] until a response came
         # there can only be one entry per thread calling 'request'
@@ -308,21 +279,14 @@ class SecopClient(ProxyClient):
         self.io = None
         self.txq = queue.Queue(30)   # queue for tx requests
         self.pending = queue.Queue(30)  # requests with colliding action + ident
-        self.log = log or NullLogger
+        self.log = log
         self.uri = uri
         self.nodename = uri
         self._lock = RLock()
-        self._shutdown = Event()
-        self.cleanup = []
-        self.register_callback(None, self.handleError)
 
     def __del__(self):
-        # make sure threads are stopping. this is needed in case
-        # a frappy client object is lost without calling .disconnect()
         try:
-            # avoid callbacks when deleting. may cause deadlocks in NICOS
-            self.callbacks.clear()
-            self.disconnect(True)
+            self.disconnect()
         except Exception:
             pass
 
@@ -334,17 +298,12 @@ class SecopClient(ProxyClient):
         with self._lock:
             if self.io:
                 return
-            self._shutdown.clear()
-            self.txq = queue.Queue(30)
-            self.pending = queue.Queue(30)
-            self.active_requests.clear()
-            self.cleanup.clear()
             if self.online:
                 self._set_state(True, 'reconnecting')
             else:
                 self._set_state(False, 'connecting')
             deadline = time.time() + try_period
-            while not self._shutdown.is_set():
+            while not self._shutdown:
                 try:
                     self.io = AsynConn(self.uri)  # timeout 1 sec
                     self.io.writeline(IDENTREQUEST.encode('utf-8'))
@@ -371,7 +330,6 @@ class SecopClient(ProxyClient):
                     self._init_descriptive_data(self.request(DESCRIPTIONREQUEST)[2])
                     self.nodename = self.properties.get('equipment_id', self.uri)
                     if self.activate:
-                        self._set_state(True, 'activating')
                         self.request(ENABLEEVENTSREQUEST)
                     self._set_state(True, 'connected')
                     break
@@ -381,8 +339,8 @@ class SecopClient(ProxyClient):
                         # stay online for now, if activated
                         self._set_state(self.online and self.activate)
                         raise
-                    self._shutdown.wait(1)
-            if not self._shutdown.is_set():
+                    time.sleep(1)
+            if not self._shutdown:
                 self.log.info('%s ready', self.nodename)
 
     def __txthread(self):
@@ -409,15 +367,8 @@ class SecopClient(ProxyClient):
 
     def __rxthread(self):
         noactivity = 0
-        shutdown = False
         try:
             while self._running:
-                while self.cleanup:
-                    entry = self.cleanup.pop()
-                    for key, prev in self.active_requests.items():
-                        if prev is entry:
-                            self.active_requests.pop(key)
-                            break
                 # may raise ConnectionClosed
                 reply = self.io.readline()
                 if reply is None:
@@ -428,37 +379,34 @@ class SecopClient(ProxyClient):
                     continue
                 self.log.debug('RX: %r', reply)
                 noactivity = 0
-                try:
-                    action, ident, data = decode_msg(reply)
-                    if ident == '.':
-                        ident = None
-                    if action in UPDATE_MESSAGES:
-                        module_param = self.internal.get(ident, None)
-                        if module_param is None and ':' not in (ident or ''):
-                            # allow missing ':value'/':target'
-                            if action == WRITEREPLY:
-                                module_param = self.internal.get(f'{ident}:target', None)
-                            else:
-                                module_param = self.internal.get(f'{ident}:value', None)
-                        if module_param is not None:
-                            now = time.time()
-                            if action.startswith(ERRORPREFIX):
-                                timestamp = data[2].get('t', now)
-                                readerror = make_secop_error(*data[0:2])
-                                value = None
-                            else:
-                                timestamp = data[1].get('t', now)
-                                value = data[0]
-                                readerror = None
-                            module, param = module_param
-                            timestamp = min(now, timestamp)  # no timestamps in the future!
+                action, ident, data = decode_msg(reply)
+                if ident == '.':
+                    ident = None
+                if action in UPDATE_MESSAGES:
+                    module_param = self.internal.get(ident, None)
+                    if module_param is None and ':' not in (ident or ''):
+                        # allow missing ':value'/':target'
+                        if action == WRITEREPLY:
+                            module_param = self.internal.get(f'{ident}:target', None)
+                        else:
+                            module_param = self.internal.get(f'{ident}:value', None)
+                    if module_param is not None:
+                        if action.startswith(ERRORPREFIX):
+                            timestamp = data[2].get('t', None)
+                            readerror = frappy.errors.make_secop_error(*data[0:2])
+                            value = None
+                        else:
+                            timestamp = data[1].get('t', None)
+                            value = data[0]
+                            readerror = None
+                        module, param = module_param
+                        timestamp = min(time.time(), timestamp)  # no timestamps in the future!
+                        try:
                             self.updateValue(module, param, value, timestamp, readerror)
-                            if action in (EVENTREPLY, ERRORPREFIX + EVENTREPLY):
-                                continue
-                except Exception as e:
-                    e.args = (f'error handling SECoP message {reply!r}: {e}',)
-                    self.callback(None, 'handleError',  e)
-                    continue
+                        except KeyError:
+                            pass  # ignore updates of unknown parameters
+                        if action in (EVENTREPLY, ERRORPREFIX + EVENTREPLY):
+                            continue
                 try:
                     key = action, ident
                     entry = self.active_requests.pop(key)
@@ -485,19 +433,17 @@ class SecopClient(ProxyClient):
         except ConnectionClosed:
             pass
         except Exception as e:
-            shutdown = True
-            self.callback(None, 'handleError', e)
-        finally:
-            self._rxthread = None
-            self.disconnect(shutdown)
-            if self._shutdown.is_set():
-                return
-            if self.activate:
-                self.log.info('try to reconnect to %s', self.uri)
-                self._connthread = mkthread(self._reconnect)
-            else:
-                self.log.warning('%s disconnected', self.uri)
-                self._set_state(False, 'disconnected')
+            self.log.error('rxthread ended with %r', e)
+        self._rxthread = None
+        self.disconnect(False)
+        if self._shutdown:
+            return
+        if self.activate:
+            self.log.info('try to reconnect to %s', self.uri)
+            self._connthread = mkthread(self._reconnect)
+        else:
+            self.log.warning('%s disconnected', self.uri)
+            self._set_state(False, 'disconnected')
 
     def spawn_connect(self, connected_callback=None):
         """try to connect in background
@@ -508,7 +454,7 @@ class SecopClient(ProxyClient):
         self._connthread = mkthread(self._reconnect, connected_callback)
 
     def _reconnect(self, connected_callback=None):
-        while not self._shutdown.is_set():
+        while not self._shutdown:
             try:
                 self.connect()
                 if connected_callback:
@@ -528,15 +474,15 @@ class SecopClient(ProxyClient):
                         self.log.info('continue trying to reconnect')
                         # self.log.warning(formatExtendedTraceback())
                         self._set_state(False)
-                    self._shutdown.wait(self.reconnect_timeout)
+                    time.sleep(self.reconnect_timeout)
                 else:
-                    self._shutdown.wait(1)
+                    time.sleep(1)
         self._connthread = None
 
     def disconnect(self, shutdown=True):
         self._running = False
         if shutdown:
-            self._shutdown.set()
+            self._shutdown = True
             self._set_state(False, 'shutdown')
             if self._connthread:
                 if self._connthread == current_thread():
@@ -625,13 +571,6 @@ class SecopClient(ProxyClient):
         if not self.callback(None, 'unhandledMessage', action, ident, data):
             self.log.warning('unhandled message: %s %s %r', action, ident, data)
 
-    def handleError(self, exc):
-        if self._update_error_count < self._max_error_count:
-            self.log.exception('%s', exc)
-            self._update_error_count += 1
-            if self._update_error_count == self._max_error_count:
-                self.log.error('disabled reporting of further update errors')
-
     def _set_state(self, online, state=None):
         # remark: reconnecting is treated as online
         self.online = online
@@ -652,16 +591,12 @@ class SecopClient(ProxyClient):
     def get_reply(self, entry):
         """wait for reply and return it"""
         if not entry[1].wait(10):  # event
-            self.cleanup.append(entry)
             raise TimeoutError('no response within 10s')
         if not entry[2]:  # reply
-            if self._shutdown.is_set():
-                raise ConnectionError('connection shut down')
-            # no cleanup needed as self.active_requests will be cleared on connect
             raise ConnectionError('connection closed before reply')
         action, _, data = entry[2]  # pylint: disable=unpacking-non-sequence
         if action.startswith(ERRORPREFIX):
-            raise make_secop_error(*data[0:2])
+            raise frappy.errors.make_secop_error(*data[0:2])
         return entry[2]  # reply
 
     def request(self, action, ident=None, data=None):
@@ -676,14 +611,9 @@ class SecopClient(ProxyClient):
         """forced read over connection"""
         try:
             self.request(READREQUEST, self.identifier[module, parameter])
-        except SECoPError as e:
-            result = self.cache[module, parameter]
-            if e == result.readerror:
-                # the update was already done in the rx thread
-                return result
-            # e was not originating from a secop error message e.g. a connection problem
-            # -> we have to do the error update
-            self.updateValue(module, parameter, None, time.time(), e)
+        except frappy.errors.SECoPError:
+            # error reply message is already stored as readerror in cache
+            pass
         return self.cache.get((module, parameter), None)
 
     def getParameter(self, module, parameter, trycache=False):
@@ -709,7 +639,7 @@ class SecopClient(ProxyClient):
             argument = datatype.export_value(argument)
         else:
             if argument is not None:
-                raise WrongTypeError('command has no argument')
+                raise frappy.errors.WrongTypeError('command has no argument')
         # pylint: disable=unsubscriptable-object
         data, qualifiers = self.request(COMMANDREQUEST, self.identifier[module, command], argument)[2]
         datatype = self.modules[module]['commands'][command]['datatype'].result
@@ -718,12 +648,8 @@ class SecopClient(ProxyClient):
         return data, qualifiers
 
     def updateValue(self, module, param, value, timestamp, readerror):
-        datatype = self.modules[module]['parameters'][param]['datatype']
-        if readerror:
-            assert isinstance(readerror, Exception)
-        else:
-            value = datatype.import_value(value)
-        entry = CacheItem(value, timestamp, readerror, datatype)
+        entry = CacheItem(value, timestamp, readerror,
+                          self.modules[module]['parameters'][param]['datatype'])
         self.cache[(module, param)] = entry
         self.callback(None, 'updateItem', module, param, entry)
         self.callback(module, 'updateItem', module, param, entry)

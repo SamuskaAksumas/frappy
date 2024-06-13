@@ -1,3 +1,4 @@
+#  -*- coding: utf-8 -*-
 # *****************************************************************************
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -38,8 +39,6 @@ class HasControlledBy:
 
         :param name: the name of the module (for controlled_by enum)
         :param deactivate_control: a method on the input module to switch off control
-
-        called by <controller module>.initModule
         """
         if not self.inputCallbacks:
             self.inputCallbacks = {}
@@ -58,26 +57,12 @@ class HasControlledBy:
             for deactivate_control in self.inputCallbacks.values():
                 deactivate_control(self.name)
 
-    def update_target(self, module, value):
-        """update internal target value
-
-        as write_target would switch to manual mode, the controlling module
-        has to use this method to update the value
-
-        override and super call, if other actions are needed
-        """
-        if self.controlled_by != module:
-            deactivate_control = self.inputCallbacks.get(self.controlled_by)
-            if deactivate_control:
-                deactivate_control(module)
-        self.target = value
-
 
 class HasOutputModule:
     """mixin for modules having an output module
 
     in the :meth:`write_target` the hardware action to switch to own control should be done
-    and in addition self.activate_control() should be called
+    and in addition self.activate_output() should be called
     """
     # mandatory=False: it should be possible to configure a module with fixed control
     output_module = Attached(HasControlledBy, mandatory=False)
@@ -107,10 +92,7 @@ class HasOutputModule:
         self.set_control_active(True)
 
     def deactivate_control(self, source=None):
-        """called when another module takes over control
-
-        registered to be called from the controlled module(s)
-        """
+        """called when an other module takes over control"""
         if self.control_active:
             self.set_control_active(False)
             self.log.warning(f'switched to manual mode by {source or self.name}')
