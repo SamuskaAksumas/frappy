@@ -89,7 +89,22 @@ class Robot(HasIO,Drivable):
     status = Parameter(datatype=StatusType(Status))  # override Readable.status
 
     
+    value = Parameter("Currently loaded program",
+                       datatype=StringType(),
+                       default = '<unknown>.urp',
+                       readonly = True)
+
+    target = Parameter("Program that is to be executed",
+                       datatype=StringType(),
+                       default = 'none',
+                       readonly = False)
     
+    loaded_prog = Parameter("Program that is currently loaded",
+                            datatype= StringType(),
+                            default = "<unknown>.urp",
+                            readonly = True,
+                            visibility = 'expert')
+
     coords = Parameter("Coordinate Position",
                        datatype=ArrayOf(FloatRange(),minlen=6,maxlen=6), # Hier mussder datentyp genau bestimmt sein am besten mit minlen == maxlen  
                        default = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], # der default value muss dem datentyp ensprechen 
@@ -188,7 +203,7 @@ class Robot(HasIO,Drivable):
 
     def read_joint_position(self):
         if self.bot == None:
-            return [0,0,0]
+            return [0,0,0,0,0,0]
         
         return self.bot.getj()
     
