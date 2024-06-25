@@ -97,13 +97,13 @@ class Robot(HasIO,Drivable):
     
     #TODO anpassen minlen maxlen und default value anpassen
     joint_temperature = Parameter("Temperatures in Robot (Joints?)",
-                       datatype=ArrayOf(FloatRange(),minlen=3,maxlen=3),
+                       datatype=ArrayOf(FloatRange(),minlen=3,maxlen=3), #noch unbekannt
                        default = [0,0,0],
                        readonly = True)
-    #TODO anpassen minlen maxlen und default value anpassen
+    
     joint_position = Parameter("Joint angels",
-                      datatype=ArrayOf(FloatRange(),minlen=3,maxlen=3),
-                      default = [0,0,0],                
+                      datatype=ArrayOf(FloatRange(),minlen=6,maxlen=6),
+                      default = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],                
                       readonly = True)
     
     model = Parameter("Model name of the robot",
