@@ -10,7 +10,6 @@ from frappy.lib.enum import Enum
 
 from frappy.modules import Attached
 
-import re
 
 
 
@@ -60,19 +59,21 @@ class RobotIO(StringIO):
 
 
 
-class UR_Robot(HasIO,Drivable, URRobot):
+class Robot(HasIO,Drivable):
 
-    def __init__(self, robot_ip, use_rt=True):
         
-        self.bot = URRobot(robot_ip)
-       
+
+    # Der wert der robot IP kann in der cfg Datei innerhalb des robot modules gesetzt werden (z.b.: robot_ip='192.168.1.2')
+    robot_ip = Parameter("IP Address of the robot arm",
+    	datatype=StringType(),
+    	readonly = True,
+    	export = False) # export= false --> der parameter ist nur intern und wird nicht mit der SEC node gepublished 
     
     attached_sample =  Attached(mandatory=True)
     
     attached_storage = Attached(mandatory=True)
     
     Status = Enum(
-        Drivable.Status,
         Drivable.Status,
         DISABLED = StatusType.DISABLED,
         PREPARING = StatusType.PREPARING,
@@ -90,23 +91,19 @@ class UR_Robot(HasIO,Drivable, URRobot):
     
     
     coords = Parameter("Coordinate Position",
-                       datatype=ArrayOf(FloatRange()),
-                       default = 0,
+                       datatype=ArrayOf(FloatRange(),minlen=3,maxlen=3), # Hier mussder datentyp genau bestimmt sein am besten mit minlen == maxlen  
+                       default = [0,0,0], # der default value muss dem datentyp ensprechen 
                        readonly = True)
     
-    robot_ip = Parameter("IP of the robot",
-                       datatype=StringType(),
-                       default = '0.0.0.0',
-                       readonly = True)
-
+    #TODO anpassen minlen maxlen und default value anpassen
     joint_temperature = Parameter("Temperatures in Robot (Joints?)",
-                       datatype=ArrayOf(FloatRange()),
-                       default = 'none',
+                       datatype=ArrayOf(FloatRange(),minlen=3,maxlen=3),
+                       default = [0,0,0],
                        readonly = True)
-    
+    #TODO anpassen minlen maxlen und default value anpassen
     joint_position = Parameter("Joint angels",
-                      datatype=ArrayOf(FloatRange()),
-                      default = "none",                
+                      datatype=ArrayOf(FloatRange(),minlen=3,maxlen=3),
+                      default = [0,0,0],                
                       readonly = True)
     
     model = Parameter("Model name of the robot",
@@ -168,16 +165,31 @@ class UR_Robot(HasIO,Drivable, URRobot):
                            default = {'paused':False,'interrupted_prog':'none'})
     
     
+    def initModule(self):
+        try:
+            self.bot = URRobot(self.robot_ip)
+        except TimeoutError:
+            self.bot = None    
+
+        
+        return super().initModule() 
+
     def doPoll(self):
         self.read_status()
         self.read_coords()
 
 
     def read_coords(self):
+        if self.bot == None:
+            return [0,0,0]
+        
         return self.bot.getl()
     
 
     def read_joint_position(self):
+        if self.bot == None:
+            return [0,0,0]
+        
         return self.bot.getj()
     
 
@@ -226,6 +238,8 @@ class UR_Robot(HasIO,Drivable, URRobot):
 
     def read_status(self):
     
+        if self.bot is None:
+            return DISABLED, "not connected"
         if self.bot.is_running:
             if self.bot.is_program_running:
                 return BUSY, 'Robot is running a program'
@@ -263,15 +277,15 @@ class UR_Robot(HasIO,Drivable, URRobot):
             
     
   
-PAUSED           = UR_Robot.Status.PAUSED
-STOPPED          = UR_Robot.Status.STOPPED
-UNKNOWN          = UR_Robot.Status.UNKNOWN
-PREPARING        = UR_Robot.Status.PREPARING
-DISABLED         = UR_Robot.Status.DISABLED
-STANDBY          = UR_Robot.Status.STANDBY 
-LOCAL_CONTROL    = UR_Robot.Status.LOCAL_CONTROL 
-LOCKED           = UR_Robot.Status.LOCKED
-ERROR            = UR_Robot.Status.ERROR
+PAUSED           = Robot.Status.PAUSED
+STOPPED          = Robot.Status.STOPPED
+UNKNOWN          = Robot.Status.UNKNOWN
+PREPARING        = Robot.Status.PREPARING
+DISABLED         = Robot.Status.DISABLED
+STANDBY          = Robot.Status.STANDBY 
+LOCAL_CONTROL    = Robot.Status.LOCAL_CONTROL 
+LOCKED           = Robot.Status.LOCKED
+ERROR            = Robot.Status.ERROR
 
 ROBOT_MODE_STATUS = {
     'NO_CONTROLLER' :(ERROR,'NO_CONTROLLER'),

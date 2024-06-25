@@ -257,8 +257,9 @@ class Storage(HasIO,Readable):
             # Robot Running and No sample in Gripper
             return BUSY , "Robot is in use by another module"
         
-        if self.attached_sample._holding_sample():
-            return BUSY , "Robot is in use by another module"
+        #TODO
+        #if self.attached_sample._holding_sample():
+        #    return BUSY , "Robot is in use by another module"
         
         
         return robo_stat
