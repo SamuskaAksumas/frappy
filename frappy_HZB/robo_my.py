@@ -91,8 +91,8 @@ class Robot(HasIO,Drivable):
     
     
     coords = Parameter("Coordinate Position",
-                       datatype=ArrayOf(FloatRange(),minlen=3,maxlen=3), # Hier mussder datentyp genau bestimmt sein am besten mit minlen == maxlen  
-                       default = [0,0,0], # der default value muss dem datentyp ensprechen 
+                       datatype=ArrayOf(FloatRange(),minlen=6,maxlen=6), # Hier mussder datentyp genau bestimmt sein am besten mit minlen == maxlen  
+                       default = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], # der default value muss dem datentyp ensprechen 
                        readonly = True)
     
     #TODO anpassen minlen maxlen und default value anpassen
@@ -306,6 +306,3 @@ POWER_STATE = {
     'POWER_OFF' : 'power off'
 }
 
-
-if __name__ == '__main__':
-    print(UR_Robot('198.162.113.215').read_coords())

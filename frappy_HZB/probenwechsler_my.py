@@ -16,7 +16,7 @@ import re
 import uuid
 
 
-nsamples = 12 #check and make depend of mag slots
+nsamples = 12 #check and make depend of number of mags integrated
 
 
 
