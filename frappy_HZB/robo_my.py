@@ -256,7 +256,7 @@ class Robot(HasIO,Drivable):
         if self.bot is None:
             return DISABLED, "not connected"
         if self.bot.is_running:
-            if self.bot.is_program_running:
+            if self.bot.is_program_running():
                 return BUSY, 'Robot is running a program'
             else:
                 return IDLE, 'Robot on without any prorgam running'
