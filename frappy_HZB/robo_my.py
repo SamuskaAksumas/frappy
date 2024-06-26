@@ -186,8 +186,8 @@ class Robot(HasIO,Drivable):
         except TimeoutError:
             self.bot = None    
 
-        
         return super().initModule() 
+
 
     def doPoll(self):
         self.read_status()
@@ -196,7 +196,7 @@ class Robot(HasIO,Drivable):
 
     def read_coords(self):
         if self.bot == None:
-            return [0,0,0]
+            return [0,0,0,0,0,0]
         
         return self.bot.getl()
     
