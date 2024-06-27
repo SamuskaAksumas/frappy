@@ -274,13 +274,6 @@ class Robot(HasIO,Drivable):
                 return IDLE, 'Robot on without any prorgam running'
         else:
             return STOPPED, 'Robot not running at all'
-
-
-    def _program_running(self): 
-        if self.bot.is_program_running():
-            return True
-        else:
-            return False
         
 
     @Command(group ='control')
