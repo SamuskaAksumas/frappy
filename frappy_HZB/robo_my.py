@@ -116,7 +116,7 @@ class Robot(HasIO,Drivable):
                        default = [0,0,0],
                        readonly = True)
     
-    joint_position = Parameter("Joint angels",
+    joint_positions = Parameter("Joint angels",
                       datatype=ArrayOf(FloatRange(),minlen=6,maxlen=6),
                       default = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],                
                       readonly = True)
@@ -192,6 +192,10 @@ class Robot(HasIO,Drivable):
     def doPoll(self):
         self.read_status()
         self.read_coords()
+        self.read_joint_positions()
+        self.read_robotmode()
+        self.read_is_in_remote_control()
+
 
 
     def read_coords(self):
@@ -201,7 +205,7 @@ class Robot(HasIO,Drivable):
         return self.bot.getl()
     
 
-    def read_joint_position(self):
+    def read_joint_positions(self):
         if self.bot == None:
             return [0,0,0,0,0,0]
         
@@ -227,6 +231,14 @@ class Robot(HasIO,Drivable):
             return robo_mode
 
         raise ReadFailedError("Unknown robot mode:" + robo_mode)
+    
+
+    def read_is_in_remote_control(self):
+        remote_control =  str(self.communicate('is in remote control'))
+        
+        if remote_control == 'true':
+            return True
+        return False
     
 
     def read_powerstate(self):
@@ -281,13 +293,35 @@ class Robot(HasIO,Drivable):
     def play(self):
         """Start/continue execution of program"""
         
-        if self.status == BUSY:
-            raise ImpossibleError('Robot currently busy')
-        if self.status == STOPPED:
-            raise ImpossibleError('Robot stopped')
-        if self.status == IDLE:
-            self.bot.down()
-            self.bot.up()       #do something
+        # if self.status == BUSY:
+        #     raise ImpossibleError('Robot currently busy')
+        # if self.status == STOPPED:
+        #     raise ImpossibleError('Robot stopped')
+        # if self.status == IDLE:
+        self.bot.down()
+        self.bot.up()       #do something
+
+    @Command(group ='control')
+    def down(self):
+        """Start/continue execution of program"""
+        
+        # if self.status == BUSY:
+        #     raise ImpossibleError('Robot currently busy')
+        # if self.status == STOPPED:
+        #     raise ImpossibleError('Robot stopped')
+        # if self.status == IDLE:
+        self.bot.down()
+    
+    @Command(group ='control')
+    def up(self):
+        """Start/continue execution of program"""
+        
+        # if self.status == BUSY:
+        #     raise ImpossibleError('Robot currently busy')
+        # if self.status == STOPPED:
+        #     raise ImpossibleError('Robot stopped')
+        # if self.status == IDLE:
+        self.bot.up()       #do something
             
             
     

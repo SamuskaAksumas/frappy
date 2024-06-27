@@ -247,6 +247,7 @@ class Storage(HasIO,Readable):
     def read_status(self):   #noch nicht bearbeitet
         robo_stat = self.attached_robot.status
         
+        
         # Robot Arm is Busy        
         if robo_stat[0] == BUSY:
             if re.match(r'in\d+\.urp',self.attached_robot.value):
