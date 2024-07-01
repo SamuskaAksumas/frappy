@@ -146,14 +146,22 @@ class SampleToMeasure(HasIO,Drivable):
             raise ImpossibleError('no sample stored at pos: ' +str(target)+'! please, check sample objects stored in storage' )
         
         
-        # check if robot is currently holding a Sample from Storage
-        if self._holding_sample():
-            raise ImpossibleError('Gripper is already holding sample' + str(self.value))       
+        # # check if robot is currently holding a Sample from Storage
+        # if self._holding_sample():
+        #     raise ImpossibleError('Gripper is already holding sample' + str(self.value))       
      
-        # Run Robot script to mount actual Sample        
-        prog_name = 'messpos'+ str(target) + '.urp'
+        # # Run Robot script to mount actual Sample        
+        # prog_name = 'messpos'+ str(target) + '.urp'
         
-        assert(re.match(r'messpos\d+\.urp',prog_name) )
+        # assert(re.match(r'messpos\d+\.urp',prog_name) )
+
+        '''
+
+        move to approach-pos
+        move to grip-pos
+        gripper close
+
+        '''
         
         self.attached_robot.write_target(prog_name)
  
@@ -180,10 +188,18 @@ class SampleToMeasure(HasIO,Drivable):
         #     raise ImpossibleError('Gripper is currently not holding a sample, cannot unmount')   
         
         
-        # Run Robot script to unmount Sample        
-        prog_name = 'messposin'+ str(self.value) + '.urp'
+        # # Run Robot script to unmount Sample        
+        # prog_name = 'messposin'+ str(self.value) + '.urp'
         
-        assert(re.match(r'messposin\d+\.urp',prog_name) )
+        # assert(re.match(r'messposin\d+\.urp',prog_name) )
+
+            '''
+
+        move to approach-pos
+        move to grip-pos
+        gripper close
+
+        '''
         
         self.attached_robot.write_target(prog_name)
 
