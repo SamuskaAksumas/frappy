@@ -124,7 +124,7 @@ class SampleToMeasure(HasIO,Drivable):
         return target
     
     
-    def read_status(self):   #noch nicht bearbeitet, wie wird dieser part gemacht? wie lesen wir aus ob der roboter am arbeiten ist prog_is_running?
+    def read_status(self):
         robo_stat = self.attached_robot.read_status()
         return robo_stat
     
@@ -244,25 +244,8 @@ class Storage(HasIO,Readable):
         return self.mag.mag2Arrayof()
     
 
-    def read_status(self):   #noch nicht bearbeitet
-        robo_stat = self.attached_robot.status
-        
-        
-        # Robot Arm is Busy        
-        if robo_stat[0] == BUSY:
-            if re.match(r'in\d+\.urp',self.attached_robot.value):
-                return  LOADING, "Loading sample"
-            if re.match(r'out\d+\.urp',self.attached_robot.value):
-                return UNLOADING , "Unloading sample"
-            
-            # Robot Running and No sample in Gripper
-            return BUSY , "Robot is in use by another module"
-        
-        #TODO
-        #if self.attached_sample._holding_sample():
-        #    return BUSY , "Robot is in use by another module"
-        
-        
+    def read_status(self):   #noch nicht bearbeitet, wie wird dieser part gemacht? wie lesen wir aus ob der roboter am arbeiten ist prog_is_running?
+        robo_stat = self.attached_robot.read_status()
         return robo_stat
 
     
