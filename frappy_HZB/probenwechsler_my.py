@@ -175,9 +175,9 @@ class SampleToMeasure(HasIO,Drivable):
         # check if sample is present in Storage
         self._check_value_consistency()
         
-        # check if robot is ready to mount sample
-        if not self._holding_sample():
-            raise ImpossibleError('Gripper is currently not holding a sample, cannot unmount')   
+        # # check if robot is ready to mount sample
+        # if not self._holding_sample():
+        #     raise ImpossibleError('Gripper is currently not holding a sample, cannot unmount')   
         
         
         # Run Robot script to unmount Sample        
