@@ -151,7 +151,7 @@ class SampleToMeasure(HasIO,Drivable):
         #     raise ImpossibleError('Gripper is already holding sample' + str(self.value))       
      
         # # Run Robot script to mount actual Sample        
-        # prog_name = 'messpos'+ str(target) + '.urp'
+        prog_name = 'messpos'+ str(target) + '.urp'
         
         # assert(re.match(r'messpos\d+\.urp',prog_name) )
 
@@ -189,7 +189,7 @@ class SampleToMeasure(HasIO,Drivable):
         
         
         # # Run Robot script to unmount Sample        
-        # prog_name = 'messposin'+ str(self.value) + '.urp'
+        prog_name = 'messposin'+ str(self.value) + '.urp'
         
         # assert(re.match(r'messposin\d+\.urp',prog_name) )
 

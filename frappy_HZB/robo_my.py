@@ -315,6 +315,12 @@ class Robot(HasIO,Drivable):
         #     raise ImpossibleError('Robot stopped')
         # if self.status == IDLE:
         self.bot.up()       #do something
+
+    @Command(group ='control')
+    def home(self):
+        """Start/continue execution of program"""
+        
+        self.bot.movel([-0.136,-0.267,-0.091,0.001,-3.166,-0.040], 0.1, 0.1)       #do something
             
             
     
