@@ -4,7 +4,7 @@ from frappy.core import StatusType ,Command, Parameter,  HasIO, StringIO,StructO
 
 from frappy.errors import IsErrorError, ReadFailedError, InternalError,   ImpossibleError, IsBusyError
 
-from urx import URRobot
+from urx import URRobot,Gripper
 
 from frappy.lib.enum import Enum
 
@@ -184,7 +184,12 @@ class Robot(HasIO,Drivable):
         try:
             self.bot = URRobot(self.robot_ip)
         except TimeoutError:
-            self.bot = None    
+            self.bot = None
+
+        try:
+            self.gripper = Gripper(self.robot_ip)
+        except:
+            self.gripper = None
 
         return super().initModule() 
 
@@ -321,6 +326,28 @@ class Robot(HasIO,Drivable):
         """Start/continue execution of program"""
         
         self.bot.movel([-0.136,-0.267,-0.091,0.001,-3.166,-0.040], 0.1, 0.1)       #do something
+    
+    @Command(group ='control')
+    def activate_gripper(self):
+        """Stop execution of program"""
+        self.gripper.activate()
+    
+    @Command(group ='control')
+    def connect_gripper(self):
+        """Stop execution of program"""
+        self.gripper.connect
+    
+    @Command(group ='control')
+    def disconnect_gripper(self):
+        """Stop execution of program"""
+        self.gripper.disconnect()
+    
+    @Command(group ='control')
+    def go_to_pos_gripper(self, pos, spd, frc):
+        """Stop execution of program"""
+        self.gripper.move_and_wait_for_pos(pos,spd, frc)
+
+
             
             
     
