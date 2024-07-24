@@ -179,6 +179,19 @@ class Robot(HasIO,Drivable):
                            visibility = 'expert',
                            default = {'paused':False,'interrupted_prog':'none'})
     
+    speed = Parameter("Gripper Speed",
+                           datatype=FloatRange(),
+                           default = 50)
+    
+    pos = Parameter("Gripper Position",
+                           datatype=FloatRange(),
+                           default = 50)
+    
+    force = Parameter("Gripper Force",
+                           datatype=FloatRange(),
+                           default = 10)
+    
+    
     
     def initModule(self):
         try:
@@ -343,9 +356,13 @@ class Robot(HasIO,Drivable):
         self.gripper.disconnect()
     
     @Command(group ='control')
-    def go_to_pos_gripper(self, pos, spd, frc):
+    async def go_to_pos_gripper(self):#, pos, spd, frc):
         """Stop execution of program"""
-        self.gripper.move_and_wait_for_pos(pos,spd, frc)
+        pos = self.pos
+        spd = self.speed
+        frc = self.force
+        await print('pos, speed, force',pos, spd, frc)
+        await self.gripper.move_and_wait_for_pos(pos,spd, frc)
 
 
             
