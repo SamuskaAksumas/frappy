@@ -10,6 +10,11 @@ from frappy.lib.enum import Enum
 
 from frappy.modules import Attached
 
+import cv2
+import depthai as dai
+import numpy as np
+import blobconverter
+
 
 
 
@@ -55,7 +60,18 @@ class RobotIO(StringIO):
 
 
 
-
+class TextHelper:
+    def __init__(self) -> None:
+        self.bg_color = (0, 0, 0)
+        self.color = (255, 255, 255)
+        self.text_type = cv2.FONT_HERSHEY_SIMPLEX
+        self.line_type = cv2.LINE_AA
+    def putText(self, frame, text, coords):
+        cv2.putText(frame, text, coords, self.text_type, 0.8, self.bg_color, 3, self.line_type)
+        cv2.putText(frame, text, coords, self.text_type, 0.8, self.color, 1, self.line_type)
+    def rectangle(self, frame, p1, p2):
+        cv2.rectangle(frame, p1, p2, self.bg_color, 6)
+        cv2.rectangle(frame, p1, p2, self.color, 1)
 
 
 
@@ -199,12 +215,47 @@ class Robot(HasIO,Drivable):
         except TimeoutError:
             self.bot = None
 
+
         try:
             self.gripper = Gripper(self.robot_ip)
         except:
             self.gripper = None
 
-        return super().initModule() 
+
+        try:
+            self.pipeline = dai.Pipeline() #Create Pipeline
+            # Define sources and outputs
+            self.camRgb = self.pipeline.create(dai.node.ColorCamera)
+            self.camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
+            self.camRgb.setPreviewSize(1080,1080)
+            self.camRgb.setInterleaved(False)
+            #camRgb.initialControl.setManualFocus(145)
+            self.camRgb.setFps(60)
+            self.camRgb.initialControl.setManualFocus(255) # 0..255 MANUAL FOCUS
+
+            self.frameOut = self.pipeline.create(dai.node.XLinkOut)
+            self.frameOut.setStreamName("color")
+            self.camRgb.preview.link(self.frameOut.input)
+
+            # 1080x1080 -> 384x384 required by the model
+            self.scale_manip = self.pipeline.create(dai.node.ImageManip)
+            self.scale_manip.initialConfig.setResize(384,384)
+            self.scale_manip.initialConfig.setFrameType(dai.ImgFrame.Type.GRAY8)
+            self.camRgb.preview.link(self.scale_manip.inputImage)
+
+            self.nn = self.pipeline.create(dai.node.MobileNetDetectionNetwork)
+            self.nn.setConfidenceThreshold(0.1)
+            self.nn.setBlobPath(blobconverter.from_zoo(name="qr_code_detection_384x384", zoo_type="depthai", shaves=6))
+            self.nn.input.setQueueSize(1)
+            self.nn.input.setBlocking(False)
+            self.scale_manip.out.link(self.nn.input)
+        
+        except:
+            self.pipeline = None
+
+
+
+        return super().initModule()
 
 
     def doPoll(self):
@@ -363,6 +414,74 @@ class Robot(HasIO,Drivable):
         frc = self.force
         await print('pos, speed, force',pos, spd, frc)
         await self.gripper.move_and_wait_for_pos(pos,spd, frc)
+
+    @Command(group ='control')
+    def detect(self):
+        """Stop execution of program"""
+        # Linking
+        self.nnOut = self.pipeline.create(dai.node.XLinkOut)
+        self.nnOut.setStreamName("nn")
+        self.nn.out.link(self.nnOut.input)
+        suc = []
+
+        # Connect to a device and start the pipeline
+        with dai.Device(self.pipeline) as device:
+            
+            qRight = device.getOutputQueue("color", maxSize=4, blocking=False)
+            qDet = device.getOutputQueue("nn", maxSize=4, blocking=False)
+            c = TextHelper()
+
+            def decode(frame, bbox, detector = None):
+                img = frame[bbox[1]:bbox[3], bbox[0]:bbox[2]]
+                data, vertices_array, binary_qrcode = detector.detectAndDecode(img)
+                if data:
+                    print("Decoded text", data)
+                    suc.append(1)
+                    return data
+                else:
+                    print("Decoding failed")
+                    suc.append(0)
+                    return ""
+
+            def expandDetection(det, percent=2):
+                percent /= 100
+                det.xmin -= percent
+                det.ymin -= percent
+                det.xmax += percent
+                det.ymax += percent
+                if det.xmin < 0: det.xmin = 0
+                if det.ymin < 0: det.ymin = 0
+                if det.xmax > 1: det.xmax = 1
+                if det.ymax > 1: det.ymax = 1
+
+            # nn data, being the bounding box locations, are in <0..1> range - they need to be normalized with frame width/height
+            def frameNorm(frame, bbox):
+                normVals = np.full(len(bbox), frame.shape[0])
+                normVals[::2] = frame.shape[1]
+                return (np.clip(np.array(bbox), 0, 1) * normVals).astype(int)
+
+            detector = cv2.QRCodeDetector()
+
+            while True:
+                
+                frame = qRight.get().getCvFrame()
+                detections = inDet = qDet.get().detections
+
+                for det in detections:
+                    expandDetection(det)
+                    bbox = frameNorm(frame, (det.xmin, det.ymin, det.xmax, det.ymax))
+                    c.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]))
+                    c.putText(frame, f"{int(det.confidence * 100)}%", (bbox[0] + 10, bbox[1] + 20))
+
+                    text = decode(frame, bbox, detector)
+                    if len(suc)>99:
+                        print(f'Erkennungserfolgsquote: {np.mean(suc[-1000:])*100}%')
+                    c.putText(frame, text, (bbox[0] + 10, bbox[1] + 40))
+
+                cv2.imshow("Image", frame)
+
+                if cv2.waitKey(1) == ord('q'):
+                    break
 
 
             
