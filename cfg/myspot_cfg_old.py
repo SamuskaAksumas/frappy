@@ -8,14 +8,14 @@ Node('sample_changer_myspot.HZB',  # a globally unique identification
 Mod('io',  # the name of the module
     'frappy_HZB.robo_my.RobotIO',  # the class used for communication
     'TCP communication to robot Dashboard Server Interface',  # a description
-    uri='tcp://169.254.60.223:29999')  # the serial connection , ip was 192.168.2.2
+    uri='tcp://192.168.113.215:29999')  # the serial connection
     #absatz und komma geändert
     
 Mod('robot',
     'frappy_HZB.robo_my.Robot', #not finished yet
     'Module for controlling the Robotarm. It provides diagnostic information on the tool center point, joint information and general status of the robot',
     io='io',
-    robot_ip="169.254.60.223", #'192.168.2.2'
+    robot_ip='192.168.113.215',
     attached_sample = 'sample_to_measure',
     attached_storage = 'storage',
     group = 'UR_Robot',
