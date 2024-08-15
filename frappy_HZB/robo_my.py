@@ -186,7 +186,8 @@ class Robot(HasIO,Drivable):
     obj_grabbed = Parameter("Boolean if object has been detected in gripper",
                            datatype = BoolType(),
                            visibility = 'expert', #issue:closing raises KeyError: True when grabbing (closing gripper)
-                           default = False)
+                           default = False,
+                           readonly = True)
     
     
     def initModule(self):
@@ -355,7 +356,10 @@ class Robot(HasIO,Drivable):
         async def run():
             await self.gripper.connect()
             await self.gripper.move_and_wait_for_pos(255, 100, 100)
-            self.write_obj_grabbed(self, await self.gripper._get_var('OBJ') == 3) #muss noch überprüft werden welche zahl grabbed bedeutet
+            
+            OBJ_status = await self.gripper._get_var('OBJ')             
+            self.obj_grabbed = OBJ_status == 1 or OBJ_status == 2
+
             await self.gripper.disconnect()
         return asyncio.run(run())
 
