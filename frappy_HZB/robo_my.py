@@ -286,7 +286,7 @@ class Robot(HasIO,Drivable):
         else:
             return STOPPED, 'Robot not running at all'
         
-    def read_obj_grabbed(self):
+    #def read_obj_grabbed(self):
 
     @Command(group ='control')
     def stop(self):
