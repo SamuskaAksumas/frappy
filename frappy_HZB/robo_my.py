@@ -1,4 +1,4 @@
-from frappy.datatypes import BoolType, EnumType, FloatRange, StringType,  ArrayOf
+from frappy.datatypes import BoolType, EnumType, FloatRange, StringType,  ArrayOf, IntRange
 
 from frappy.core import StatusType ,Command, Parameter,  HasIO, StringIO,StructOf,  IDLE, BUSY, ERROR, Drivable
 
@@ -116,8 +116,8 @@ class Robot(HasIO,Drivable):
     
     #TODO anpassen minlen maxlen und default value anpassen
     joint_temperature = Parameter("Temperatures in Robot (Joints?)",
-                       datatype=ArrayOf(FloatRange(),minlen=3,maxlen=3), #noch unbekannt
-                       default = [0,0,0],
+                       datatype=ArrayOf(FloatRange(),minlen=6,maxlen=6), #noch unbekannt
+                       default = [0,0,0,0,0,0],
                        readonly = True)
     
     joint_positions = Parameter("Joint angels",
@@ -184,15 +184,15 @@ class Robot(HasIO,Drivable):
                            default = {'paused':False,'interrupted_prog':'none'})
     
     obj_grabbed = Parameter("Boolean if object has been detected in gripper",
-                           datatype = BoolType(),
+                           datatype = IntRange(0,4),
                            visibility = 'expert', #issue:closing raises KeyError: True when grabbing (closing gripper)
-                           default = False,
+                           default = 0,
                            readonly = True)
     
     
     def initModule(self):
         try:
-            self.bot = URRobot(self.robot_ip)
+            self.bot = URRobot(self.robot_ip,use_rt=True,urFirm=5.9)
             self.gripper = Gripper(self.robot_ip, 63352)
         except TimeoutError:
             self.bot = None    
@@ -206,6 +206,14 @@ class Robot(HasIO,Drivable):
         self.read_joint_positions()
         self.read_robotmode()
         self.read_is_in_remote_control()
+        self.read_joint_temperature()
+
+
+    def read_joint_temperature(self):
+        if self.bot == None:
+            return [0,0,0,0,0,0]
+
+        return self.bot.get_joint_temperature()
 
 
 
@@ -285,8 +293,7 @@ class Robot(HasIO,Drivable):
                 return IDLE, 'Robot on without any prorgam running'
         else:
             return STOPPED, 'Robot not running at all'
-        
-    #def read_obj_grabbed(self):
+
 
     @Command(group ='control')
     def stop(self):
@@ -342,6 +349,7 @@ class Robot(HasIO,Drivable):
         async def run():
             await self.gripper.connect()
             await self.gripper.move_and_wait_for_pos(1, 100, 100)
+            self.obj_grabbed =  await self.gripper._get_var('OBJ') #muss noch überprüft werden welche zahl grabbed bedeutet
             await self.gripper.disconnect()
             # print(await self.gripper.get_current_position())
             # print('detected:', await self.gripper._get_var('OBJ'))
@@ -352,10 +360,10 @@ class Robot(HasIO,Drivable):
         """Start/continue execution of program"""
         async def run():
             await self.gripper.connect()
+            self.obj_grabbed =  await self.gripper._get_var('OBJ') #muss noch überprüft werden welche zahl grabbed bedeutet
             await self.gripper.move_and_wait_for_pos(255, 100, 100)
-            self.obj_grabbed =  await self.gripper._get_var('OBJ') == 2 #muss noch überprüft werden welche zahl grabbed bedeutet
             await self.gripper.disconnect()
-        return asyncio.run(run())
+        asyncio.run(run())
 
     @Command(group ='control')
     def activate_and_calibrate_gripper(self):
