@@ -6,7 +6,7 @@ from frappy.errors import IsErrorError, ReadFailedError, InternalError,   Imposs
 
 from urx import URRobot
 
-from gripper_davinci import Gripper
+from urx.gripper_davinci import Gripper
 
 from frappy.lib.enum import Enum
 
@@ -299,7 +299,7 @@ class Robot(HasIO,Drivable):
             return STOPPED, 'Robot not running at all'
         
 
-    def euler_to_quaternion(xr, yr, zr, degree=False):
+    def euler_to_quaternion(self, xr, yr, zr, degree=False):
         '''
         Input:
         Rotation-Angles: xr,yr,zr
@@ -316,7 +316,7 @@ class Robot(HasIO,Drivable):
 
         return quaternion
     
-    def local_to_global(local_point, origin_point, degree=False):
+    def local_to_global(self, local_point, origin_point, degree=False):
         '''
         Input:
         Local-Point: Point in Local-Coordinatesystem (in Shape X,Y,Z,XR,YR,ZR).
@@ -328,8 +328,8 @@ class Robot(HasIO,Drivable):
         '''
 
         # create rotations from quaternions
-        local_rot = R.from_quat(euler_to_quaternion(local_point[3],local_point[4],local_point[5]))
-        origin_rot = R.from_quat(euler_to_quaternion(origin_point[3],origin_point[4], origin_point[5]))
+        local_rot = R.from_quat(self.euler_to_quaternion(local_point[3],local_point[4],local_point[5]))
+        origin_rot = R.from_quat(self.euler_to_quaternion(origin_point[3],origin_point[4], origin_point[5]))
         
         # combine rotations
         combined_rotation = origin_rot * local_rot
@@ -391,7 +391,28 @@ class Robot(HasIO,Drivable):
     @Command(group ='control')
     def move_in_local_coord(self):
         """Start/continue execution of program"""
-        self.bot.movel((0, 0, 0.05, 0, 0, 0), 0.5, 0.5, relative=True)
+        a=0.4
+        v=0.4
+        local_coord = self.bot.getl()
+        print(local_coord)
+        #x
+        tpose = self.local_to_global([0.05,0,0,0,0,0],local_coord)
+        print(tpose)
+        self.bot.movel(tpose,a,v)
+        tpose = self.local_to_global([0,0,0,0,0,0],local_coord)
+        print(tpose)
+        self.bot.movel(tpose,a,v)
+        #y
+        tpose = self.local_to_global([0,0.05,0,0,0,0],local_coord)
+        self.bot.movel(tpose,a,v)
+        tpose = self.local_to_global([0,0,0,0,0,0],local_coord)
+        self.bot.movel(tpose,a,v)
+        #z
+        self.bot.movel(tpose,a,v)
+        tpose = self.local_to_global([0,0,0.05,0,0,0],local_coord)
+        self.bot.movel(tpose,a,v)
+        tpose = self.local_to_global([0,0,0,0,0,0],local_coord)
+        self.bot.movel(tpose,a,v)
 
 
     @Command(group ='control')
