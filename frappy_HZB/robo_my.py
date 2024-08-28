@@ -14,6 +14,10 @@ from frappy.modules import Attached
 
 import asyncio
 
+import numpy as np
+
+from scipy.spatial.transform import Rotation as R
+
 
 
 
@@ -189,7 +193,53 @@ class Robot(HasIO,Drivable):
                            default = 0,
                            readonly = True)
     
+    def euler_to_quaternion(xr, yr, zr, degree=False):
+        '''
+        Input:
+        Rotation-Angles: xr,yr,zr
+        degree: Bool-Type, is in degree
+
+        Converts Euler-Angles into Quaternion-Angles
+        '''
+
+        # create the rotation from euler angles
+        rotation = R.from_euler('xyz', [xr, yr, zr], degrees=degree)
+
+        # convert rotations into quaternions
+        quaternion = rotation.as_quat()
+
+        return quaternion
     
+    def local_to_global(local_point, origin_point, degree=False):
+        '''
+        Input:
+        Local-Point: Point in Local-Coordinatesystem (in Shape X,Y,Z,XR,YR,ZR).
+        Simply type in 0 for Rs if there is no rotation
+        Origin-Point: Origin-Point of Local-Coordinatesystem, same Shape as Local-Point
+        degree: Bool-Type, is in degree
+
+        Converts Local_Point in Local-Coordinatesystem into Global-Point
+        '''
+
+        # create rotations from quaternions
+        local_rot = R.from_quat(euler_to_quaternion(local_point[3],local_point[4],local_point[5]))
+        origin_rot = R.from_quat(euler_to_quaternion(origin_point[3],origin_point[4], origin_point[5]))
+        
+        # combine rotations
+        combined_rotation = origin_rot * local_rot
+        
+        # apply combined rotations of local-point
+        rotated_point = combined_rotation.apply(local_point[:3])
+        
+        # tranlate point to global-coordinatesysten
+        global_point = rotated_point + origin_point[:3]
+        
+        # combine rotations for global-point
+        global_rotation = combined_rotation.as_euler('xyz', degrees=degree)
+        
+        return np.concatenate((global_point, global_rotation))
+
+
     def initModule(self):
         try:
             self.bot = URRobot(self.robot_ip,use_rt=True,urFirm=5.9)
@@ -336,6 +386,12 @@ class Robot(HasIO,Drivable):
         # if self.status == IDLE:
         #self.bot.up()       #do something
         self.bot.movel((0, 0, 0.05, 0, 0, 0), 0.5, 0.5, relative=True)
+
+    @Command(group ='control')
+    def move_in_local_coord(self):
+        """Start/continue execution of program"""
+        self.bot.movel((0, 0, 0.05, 0, 0, 0), 0.5, 0.5, relative=True)
+
 
     @Command(group ='control')
     def home(self):
