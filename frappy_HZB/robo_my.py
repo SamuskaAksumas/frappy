@@ -299,51 +299,71 @@ class Robot(HasIO,Drivable):
             return STOPPED, 'Robot not running at all'
         
 
-    def euler_to_quaternion(self, xr, yr, zr, degree=False):
+    def convert_local2global(origin_point,local_point, degrees=False):
         '''
+        This funtions converts points in a local coordinate system (x,y,z)
+        into a point given in the global coordinatesystem (x,y,z,xr,yr,zr)
+        Input Angles have to be given in radians.
         Input:
-        Rotation-Angles: xr,yr,zr
-        degree: Bool-Type, is in degree
-
-        Converts Euler-Angles into Quaternion-Angles
+        origin_point: Origin of local coordinatesystem as: x,y,z,xr,yr,zr
+        local_point: local point given as: x,y,z
+        optional:
+        degrees: Output angles in degree (default: False, means in radians)
         '''
 
-        # create the rotation from euler angles
-        rotation = R.from_euler('xyz', [xr, yr, zr], degrees=degree)
+        # Function to clean rounding errors
+        def apply_threshold(matrix, threshold=1e-12):
+            matrix[np.abs(matrix) < threshold] = 0
+            return matrix
 
-        # convert rotations into quaternions
-        quaternion = rotation.as_quat()
+        # Create Rotation Matrizes for each Rotationaxis
+        R_x =np.array([
+        [1, 0, 0],
+        [0, np.cos(origin_point[3]), -np.sin(origin_point[3])],
+        [0, np.sin(origin_point[3]), np.cos(origin_point[3])]
+        ])
 
-        return quaternion
-    
-    def local_to_global(self, local_point, origin_point, degree=False):
-        '''
-        Input:
-        Local-Point: Point in Local-Coordinatesystem (in Shape X,Y,Z,XR,YR,ZR).
-        Simply type in 0 for Rs if there is no rotation
-        Origin-Point: Origin-Point of Local-Coordinatesystem, same Shape as Local-Point
-        degree: Bool-Type, is in degree
+        R_y = np.array([
+        [np.cos(origin_point[4]), 0, np.sin(origin_point[4])],
+        [0, 1, 0],
+        [-np.sin(origin_point[4]), 0, np.cos(origin_point[4])]
+        ])
 
-        Converts Local_Point in Local-Coordinatesystem into Global-Point
-        '''
+        R_z = np.array([
+        [np.cos(origin_point[5]), -np.sin(origin_point[5]), 0],
+        [np.sin(origin_point[5]), np.cos(origin_point[5]), 0],
+        [0, 0, 1]
+        ])
 
-        # create rotations from quaternions
-        local_rot = R.from_quat(self.euler_to_quaternion(local_point[3],local_point[4],local_point[5]))
-        origin_rot = R.from_quat(self.euler_to_quaternion(origin_point[3],origin_point[4], origin_point[5]))
+        # Clean rotations from rounding errors
+        R_x = apply_threshold(R_x)
+        R_y = apply_threshold(R_y)
+        R_z = apply_threshold(R_z)
+
+        # Combined Rotation
+        R_combined = R_z @ R_y @ R_x
+
+        # vector for translations
+        d = np.array([origin_point[0], origin_point[1], origin_point[2]])
+
+        # Homogene transformationmatrix
+        T = np.eye(4)
+        T[:3, :3] = R_combined
+        T[:3, 3] = d
+
+         # Point in homogene coordinates
+        point_hom = np.append(local_point, 1)
+
+        # Transformed point in global coordinatesystem
+        point_global_hom = T @ point_hom
+        global_position = point_global_hom[:3]
+
+        # Extrahiere globale Orientierung in Euler-Winkeln
+        rotation = R.from_matrix(R_combined)
+        global_orientation = rotation.as_euler('xyz', degrees=degrees)  # Euler-Winkel in Grad
         
-        # combine rotations
-        combined_rotation = origin_rot * local_rot
-        
-        # apply combined rotations of local-point
-        rotated_point = combined_rotation.apply(local_point[:3])
-        
-        # tranlate point to global-coordinatesysten
-        global_point = rotated_point + origin_point[:3]
-        
-        # combine rotations for global-point
-        global_rotation = combined_rotation.as_euler('xyz', degrees=degree)
-        
-        return np.concatenate((global_point, global_rotation))
+        # Rückgabe der globalen Position und Orientierung
+        return np.concatenate((global_position, global_orientation))
 
 
     @Command(group ='control')
