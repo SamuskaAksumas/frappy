@@ -358,11 +358,11 @@ class Robot(HasIO,Drivable):
         point_global_hom = T @ point_hom
         global_position = point_global_hom[:3]
 
-        # Extrahiere globale Orientierung in Euler-Winkeln
+        # get global rotations into euler angles
         rotation = R.from_matrix(R_combined)
-        global_orientation = rotation.as_euler('xyz', degrees=degrees)  # Euler-Winkel in Grad
+        global_orientation = rotation.as_euler('xyz', degrees=degrees)
         
-        # Rückgabe der globalen Position und Orientierung
+        # return global position in x,y,z,xr,yr,zr
         return np.concatenate((global_position, global_orientation))
 
 
