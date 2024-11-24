@@ -44,6 +44,14 @@ SAFETYSTATUS = {
 
 
 RESET_PROG = 'reset.urp'
+INIT_PROG = 'init.urp'
+IN_1_PROG = ''
+IN_2_PROG = ''
+IN_3_PROG = ''
+OUT_1_PROG = ''
+OUT_2_PROG = ''
+OUT_3_PROG = ''
+
 
 class RobotIO(StringIO):
     pass
@@ -53,17 +61,8 @@ class RobotIO(StringIO):
     wait_before = 0.05
 
 
-
-
-
-
-
-
 class UR_Robot(HasIO,Drivable):
 
-
-       
-    
     attached_sample =  Attached(mandatory=True)
     
     attached_storage = Attached(mandatory=True)
@@ -170,9 +169,6 @@ class UR_Robot(HasIO,Drivable):
     def doPoll(self):
         self.read_value()
         self.read_status()
-
-
-  
 
 
     def read_is_in_remote_control(self):
@@ -343,6 +339,13 @@ class UR_Robot(HasIO,Drivable):
         return False	    
         
     
+    @Command(group ='control')
+
+
+    def init(self):
+        """Initialize robot"""
+        self.write_target('init.urp')
+        return
 
     @Command(group ='control')
     def stop(self):

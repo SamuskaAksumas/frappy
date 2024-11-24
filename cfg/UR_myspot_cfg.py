@@ -1,22 +1,20 @@
 nsamples = 12
 
-Node('sample_changer_myspot.HZB',  # a globally unique identification
-     'Sample Changer for the myspot research station\n\nThis is the  SECoP (Sample Environment Communication Protocol) sample changer SEC-Node for the mysport research station.',  # describes the node
-      'tcp://10770', #not finished yet
-      implementor = 'Peter Wegnmann')  # you might choose any port number > 1024
-
+Node('sample_changer.HZB',  # a globally unique identification
+     'Sample Changer\n\nThis is an demo for a  SECoP (Sample Environment Communication Protocol) sample changer SEC-Node.',  # describes the node
+      'tcp://10770',
+      implementor = 'Peter Wegmann')  # you might choose any port number > 1024
 Mod('io',  # the name of the module
-    'frappy_HZB.robo_my.RobotIO',  # the class used for communication
+    'frappy_HZB.robo_myspot.RobotIO',  # the class used for communication
     'TCP communication to robot Dashboard Server Interface',  # a description
-    uri='tcp:// "192.168.140.25:29999')  # the serial connection , ip was 192.168.2.2
-    #absatz und komma geändert
+    uri='tcp://192.168.140.25:29999',  # the serial connection
+)    
     
 Mod('robot',
-    'frappy_HZB.robo_my.Robot', #not finished yet
+    'frappy_HZB.robo_myspot.UR_Robot',
     'Module for controlling the Robotarm. It provides diagnostic information on the tool center point, joint information and general status of the robot',
     io='io',
-    robot_ip="192.168.140.25", #'192.168.2.2'
-    attached_sample = 'sample_to_measure',
+    attached_sample = 'sample',
     attached_storage = 'storage',
     group = 'UR_Robot',
     
@@ -33,10 +31,10 @@ Mod('robot',
 )
 
 Mod('storage',
-    'frappy_HZB.probenwechsler_my.Storage',
+    'frappy_HZB.probenwechsler_myspot.Storage',
     'Samplestorage with slots for holding samples',
     io ='io',
-    attached_sample = 'sample_to_measure',
+    attached_sample = 'sample',
     attached_robot = 'robot',
     group = 'sample_changer',
     storage_size = nsamples,
@@ -44,9 +42,9 @@ Mod('storage',
   
 )
 
-Mod('sample_to_measure',
-    'frappy_HZB.probenwechsler_my.SampleToMeasure',
-    'Sample to be measured on measuring spot',
+Mod('sample',
+    'frappy_HZB.probenwechsler_myspot.Sample',
+    'Active Sample held by Robot',
     io ='io',
     attached_robot = 'robot',
     attached_storage = 'storage',

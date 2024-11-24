@@ -18,6 +18,8 @@ import numpy as np
 
 from scipy.spatial.transform import Rotation as R
 
+import re
+
 
 
 
@@ -297,6 +299,68 @@ class Robot(HasIO,Drivable):
                 return IDLE, 'Robot on without any prorgam running'
         else:
             return STOPPED, 'Robot not running at all'
+    
+    def write_target(self,target):
+        # Is Robot in remote control Mode?        
+        
+        if self.safetystatus > SAFETYSTATUS['REDUCED']:
+            raise IsErrorError('Robots is locked due to a safety related problem (' + str(self.safetystatus.name) + ") Please refer to instructions on the controller tablet or try 'clear_error' command.")
+            
+        
+        if not self.is_in_remote_control:
+            raise ImpossibleError('Robot arm is in local control mode, please switch to remote control mode on the Robot controller tablet')
+        
+        # Is the Robot in a stpped state?
+        if self.stop_State['stopped']:
+            raise IsErrorError('cannot run program when execution was Stopped, please reset and check for consistency')
+        
+        if self.pause_State['paused']:
+            raise IsBusyError("continue loaded program before executing "+ target)
+        
+        if self.status[0] == BUSY or self.status[0] == PREPARING:
+            raise IsBusyError('Robot is already executing another program')
+        
+        if self.status[0] >= 400 and self.status[0] != STOPPED:
+            raise IsErrorError("Robot is in an error state. program '"+target+ "' cannot be exectuted")
+        
+        load_reply = str(self.communicate(f'load {target}'))
+              
+        
+        if re.match(r'Loading program: .*%s' % target,load_reply):
+            self._run_loaded_program()
+            self.value = target
+            return target
+           
+        elif re.match(r'File not found: .*%s' % target,load_reply):
+            raise InternalError('Program not found: '+target)
+        
+        elif re.match(r'Error while loading program: .*%s' % target,load_reply):
+            raise InternalError('write_target ERROR while loading program: '+ target)
+            
+        else:
+            self.status = ERROR, 'unknown answer: '+ load_reply 
+            raise InternalError('unknown answer: '+load_reply) 
+        
+    
+    def _run_loaded_program(self):
+        play_reply  = str(self.communicate('play'))
+        
+
+        
+        if play_reply == 'Starting program':
+            # Reset paused state
+            self.pause_State = {'paused'  : False, 'interrupted_prog' : self.loaded_prog}
+            self.stop_State  = {'stopped' : False, 'interrupted_prog' : self.loaded_prog}
+            self.status = BUSY, "Starting program"
+        else:
+            raise InternalError("Failed to execute: play")
+    
+
+    @Command(group ='control')
+    def init(self):
+        """Stop execution of program"""
+        
+        self.write_target('init')
         
 
     def convert_local2global(origin_point,local_point, degrees=False):
